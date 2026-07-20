@@ -2,6 +2,9 @@ using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Microsoft.Extensions.Options;
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
+using MongoDB.Bson.Serialization.Serializers;
 using MongoDB.Driver;
 using TheLeague.Models;
 
@@ -9,6 +12,18 @@ namespace TheLeague.Mongo.Context;
 
 public class LeagueDataContext
 {
+	static LeagueDataContext()
+	{
+		try
+		{
+			BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
+		}
+		catch (BsonSerializationException)
+		{
+			// The serializer may already be registered in test hosts or warm app restarts.
+		}
+	}
+
 	public LeagueDataContext() : this(Options.Create(new MongoSettings()))
 	{
 	}
