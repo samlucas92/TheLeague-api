@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 
 namespace TheLeague.Mongo.Services;
 
-internal static class PasswordHasher
+public static class PasswordHasher
 {
 	private const int SaltSize = 16;
 	private const int KeySize = 32;

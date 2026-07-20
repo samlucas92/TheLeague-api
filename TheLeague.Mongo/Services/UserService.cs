@@ -44,9 +44,9 @@ public class UserService(LeagueDataContext context) : IUserService
 		var account = context.Users.Values
 			.Where(user => user.EmailAddress == normalizedEmail)
 			.OrderByDescending(user => user.CreatedAt)
-			.FirstOrDefault();
+			.FirstOrDefault(user => PasswordHasher.Verify(password, user.PasswordHash));
 
-		return Task.FromResult(account is not null && PasswordHasher.Verify(password, account.PasswordHash) ? account : null);
+		return Task.FromResult(account);
 	}
 
 	public Task<UserAccount?> GetByIdAsync(Guid userId, CancellationToken cancellationToken = default)

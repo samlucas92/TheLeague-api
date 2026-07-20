@@ -1,5 +1,6 @@
 using TheLeague.Enums;
 using TheLeague.Interfaces;
+using TheLeague.Models;
 using TheLeague.Mongo.Context;
 using TheLeague.Mongo.Services;
 
@@ -63,6 +64,25 @@ public class VerticalSliceTests
 		await _users.RegisterAsync("Sam", "sam@example.com", "password123");
 
 		Assert.ThrowsAsync<InvalidOperationException>(() => _users.RegisterAsync("Other Sam", "SAM@example.com", "password123"));
+	}
+
+	[Test]
+	public async Task LoginChecksAllDuplicateEmailRowsForMatchingPassword()
+	{
+		var original = await _users.RegisterAsync("Sam", "sam@example.com", "password123");
+		var duplicateId = Guid.NewGuid();
+		_context.Users[duplicateId] = new UserAccount
+		{
+			Id = duplicateId,
+			Name = "Duplicate Sam",
+			EmailAddress = "sam@example.com",
+			PasswordHash = PasswordHasher.Hash("different-password"),
+			CreatedAt = DateTime.UtcNow.AddMinutes(1)
+		};
+
+		var account = await _users.ValidateCredentialsAsync("sam@example.com", "password123");
+
+		Assert.That(account?.Id, Is.EqualTo(original.Id));
 	}
 
 	[Test]
