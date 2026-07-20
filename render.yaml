@@ -6,6 +6,8 @@ services:
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
+      - key: DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE
+        value: false
       - key: PORT
         value: 8080
       - key: Mongo__ConnectionString
