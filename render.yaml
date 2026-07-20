@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: the-league-api
+    runtime: docker
+    plan: free
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: Mongo__ConnectionString
+        sync: false
+      - key: Mongo__DatabaseName
+        value: the-league

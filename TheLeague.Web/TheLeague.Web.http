@@ -1,0 +1,6 @@
+@TheLeague.Web_HostAddress = http://localhost:0
+
+GET {{TheLeague.Web_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

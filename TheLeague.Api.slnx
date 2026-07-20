@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="TheLeague.Mongo/TheLeague.Mongo.csproj" />
+  <Project Path="TheLeague.Tests/TheLeague.Tests.csproj" />
+  <Project Path="TheLeague.Web/TheLeague.Web.csproj" />
+  <Project Path="TheLeague/TheLeague.csproj" />
+</Solution>

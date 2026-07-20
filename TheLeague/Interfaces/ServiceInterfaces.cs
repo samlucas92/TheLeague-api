@@ -1,0 +1,77 @@
+using TheLeague.Enums;
+using TheLeague.Models;
+
+namespace TheLeague.Interfaces;
+
+public interface IUserService
+{
+	Task<UserAccount> RegisterAsync(string name, string emailAddress, string password, CancellationToken cancellationToken = default);
+	Task<UserAccount?> ValidateCredentialsAsync(string emailAddress, string password, CancellationToken cancellationToken = default);
+	Task<UserAccount?> GetByIdAsync(Guid userId, CancellationToken cancellationToken = default);
+	Task<UserAccount?> GetByEmailAsync(string emailAddress, CancellationToken cancellationToken = default);
+}
+
+public interface ILeagueAuthorisationService
+{
+	Task<LeagueMember> GetRequiredMembershipAsync(Guid leagueId, Guid userId, CancellationToken cancellationToken = default);
+	Task<LeagueMember> GetRequiredAdminMembershipAsync(Guid leagueId, Guid userId, CancellationToken cancellationToken = default);
+	Task<LeagueMember> GetRequiredOwnerMembershipAsync(Guid leagueId, Guid userId, CancellationToken cancellationToken = default);
+	Task<LeagueMember> GetRequiredPointApproverMembershipAsync(Guid leagueId, Guid userId, CancellationToken cancellationToken = default);
+}
+
+public interface ILeagueService
+{
+	Task<League> CreateAsync(Guid ownerUserId, string name, string? description, LeaguePresetType presetType, LeagueJoinMode joinMode, CancellationToken cancellationToken = default);
+	Task<IReadOnlyCollection<LeagueSummary>> ListForUserAsync(Guid userId, CancellationToken cancellationToken = default);
+	Task<League?> GetAsync(Guid leagueId, CancellationToken cancellationToken = default);
+	Task<JoinPreview> PreviewJoinAsync(string joinCode, CancellationToken cancellationToken = default);
+	Task<PublicLeagueView> GetPublicViewAsync(string joinCode, CancellationToken cancellationToken = default);
+}
+
+public interface ILeagueMemberService
+{
+	Task<IReadOnlyCollection<LeagueMember>> ListAsync(Guid leagueId, Guid userId, CancellationToken cancellationToken = default);
+	Task<LeagueMember> JoinAsync(Guid userId, string joinCode, string displayName, CancellationToken cancellationToken = default);
+	Task<LeagueMember> CreateOwnerAsync(Guid leagueId, Guid ownerUserId, string displayName, CancellationToken cancellationToken = default);
+	Task<LeagueMember> AddOfflineMemberAsync(Guid leagueId, Guid userId, string displayName, string? emailAddress, LeagueMemberRole role, CancellationToken cancellationToken = default);
+	Task<LeagueMember> ChangeRoleAsync(Guid leagueId, Guid userId, Guid memberId, LeagueMemberRole role, CancellationToken cancellationToken = default);
+	Task<LeagueMember> LinkOfflineMemberAsync(Guid leagueId, Guid userId, Guid memberId, string emailAddress, CancellationToken cancellationToken = default);
+}
+
+public interface ILeaguePresetService
+{
+	Task ApplyPresetAsync(Guid leagueId, LeaguePresetType presetType, CancellationToken cancellationToken = default);
+}
+
+public interface IChallengeService
+{
+	Task<IReadOnlyCollection<ChallengeListItem>> ListAsync(Guid leagueId, Guid userId, CancellationToken cancellationToken = default);
+	Task<IReadOnlyCollection<ChallengeListItem>> ListPublicAsync(Guid leagueId, CancellationToken cancellationToken = default);
+	Task<Challenge> CreateAsync(Guid leagueId, Guid userId, Challenge challenge, CancellationToken cancellationToken = default);
+	Task<Challenge> AcceptAsync(Guid leagueId, Guid userId, Guid challengeId, CancellationToken cancellationToken = default);
+	Task<(Challenge Challenge, PointAllocation Penalty)> RejectAsync(Guid leagueId, Guid userId, Guid challengeId, CancellationToken cancellationToken = default);
+	Task<(Challenge Challenge, PointAllocation Allocation)> CompleteAsync(Guid leagueId, Guid userId, Guid challengeId, CancellationToken cancellationToken = default);
+	Task<(Challenge Challenge, PointAllocation Allocation)> FailAsync(Guid leagueId, Guid userId, Guid challengeId, CancellationToken cancellationToken = default);
+}
+
+public interface IPointSubmissionService
+{
+	Task<PointSubmission> CreateAsync(Guid leagueId, Guid userId, Guid challengeId, Guid? leagueMemberId, int? requestedPoints, string publicReason, CancellationToken cancellationToken = default);
+	Task<IReadOnlyCollection<SubmissionListItem>> ListMineAsync(Guid leagueId, Guid userId, CancellationToken cancellationToken = default);
+	Task<IReadOnlyCollection<SubmissionListItem>> ListPendingAsync(Guid leagueId, Guid userId, CancellationToken cancellationToken = default);
+	Task<(PointSubmission Submission, PointAllocation Allocation)> ApproveAsync(Guid leagueId, Guid userId, Guid submissionId, int? approvedPoints, string publicReviewReason, string? adminReviewNote, CancellationToken cancellationToken = default);
+	Task<PointSubmission> RejectAsync(Guid leagueId, Guid userId, Guid submissionId, string publicReviewReason, string? adminReviewNote, CancellationToken cancellationToken = default);
+}
+
+public interface IPointAllocationService
+{
+	Task<PointAllocation> CreateManualAsync(Guid leagueId, Guid userId, Guid leagueMemberId, int points, string reason, CancellationToken cancellationToken = default);
+	Task<IReadOnlyCollection<PointsFeedItem>> ListFeedAsync(Guid leagueId, Guid userId, CancellationToken cancellationToken = default);
+	Task<IReadOnlyCollection<PointsFeedItem>> ListPublicFeedAsync(Guid leagueId, CancellationToken cancellationToken = default);
+}
+
+public interface ILeaderboardService
+{
+	Task<IReadOnlyCollection<LeaderboardRow>> GetAsync(Guid leagueId, Guid userId, CancellationToken cancellationToken = default);
+	Task<IReadOnlyCollection<LeaderboardRow>> GetPublicAsync(Guid leagueId, CancellationToken cancellationToken = default);
+}
