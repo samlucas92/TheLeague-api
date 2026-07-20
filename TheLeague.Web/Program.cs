@@ -35,7 +35,8 @@ builder.Services
 	{
 		options.Cookie.Name = "theleague.auth";
 		options.Cookie.HttpOnly = true;
-		options.Cookie.SameSite = SameSiteMode.Lax;
+		options.Cookie.SameSite = builder.Environment.IsDevelopment() ? SameSiteMode.Lax : SameSiteMode.None;
+		options.Cookie.SecurePolicy = builder.Environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
 		options.Events.OnRedirectToLogin = context =>
 		{
 			context.Response.StatusCode = StatusCodes.Status401Unauthorized;
@@ -46,10 +47,26 @@ builder.Services
 builder.Services.AddAuthorization();
 builder.Services.AddCors(options =>
 {
+	var allowedOrigins = builder.Configuration
+		.GetSection("Cors:AllowedOrigins")
+		.Get<string[]>()
+		?.Where(origin => !string.IsNullOrWhiteSpace(origin))
+		.ToArray();
+
+	if (allowedOrigins is null || allowedOrigins.Length == 0)
+	{
+		allowedOrigins =
+		[
+			"http://localhost:5173",
+			"http://127.0.0.1:5173",
+			"https://localhost:5173"
+		];
+	}
+
 	options.AddPolicy("frontend", policy =>
 	{
 		policy
-			.WithOrigins("http://localhost:5173", "https://localhost:5173")
+			.WithOrigins(allowedOrigins)
 			.AllowAnyHeader()
 			.AllowAnyMethod()
 			.AllowCredentials();

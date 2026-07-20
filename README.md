@@ -5,7 +5,7 @@ ASP.NET Core 10 API for The League.
 ## Projects
 
 - `TheLeague`: core models, enums, and service interfaces.
-- `TheLeague.Mongo`: persistence-facing services. The first slice uses an in-memory context with Mongo settings in place for the Atlas-backed implementation.
+- `TheLeague.Mongo`: persistence-facing services backed by MongoDB Atlas when configured, with an in-memory fallback for local/test use.
 - `TheLeague.Web`: API endpoints, cookie authentication, CORS, and OpenAPI in development.
 - `TheLeague.Tests`: NUnit service and architecture tests.
 
@@ -16,6 +16,20 @@ dotnet run --project TheLeague.Web
 ```
 
 The frontend expects the API at `http://localhost:5000/api` by default.
+
+## Render configuration
+
+Set these environment variables on the Render API service:
+
+```bash
+ASPNETCORE_ENVIRONMENT=Production
+PORT=8080
+Mongo__ConnectionString=<your MongoDB Atlas connection string>
+Mongo__DatabaseName=the-league
+Cors__AllowedOrigins__0=<your Vercel frontend origin, e.g. https://your-app.vercel.app>
+```
+
+The production auth cookie is sent as `SameSite=None; Secure`, so the Vercel frontend must call the API over HTTPS with credentials included.
 
 ## First vertical slice
 

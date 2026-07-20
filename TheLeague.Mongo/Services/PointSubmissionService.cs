@@ -134,6 +134,7 @@ public class PointSubmissionService(LeagueDataContext context, ILeagueAuthorisat
 		submission.PublicReviewReason = string.IsNullOrWhiteSpace(publicReviewReason) ? submission.PublicReason : publicReviewReason.Trim();
 		submission.AdminReviewNote = string.IsNullOrWhiteSpace(adminReviewNote) ? null : adminReviewNote.Trim();
 		submission.ReviewedAt = DateTime.UtcNow;
+		await context.Submissions.SaveAsync(submission, cancellationToken);
 
 		var allocation = new PointAllocation
 		{
@@ -173,6 +174,7 @@ public class PointSubmissionService(LeagueDataContext context, ILeagueAuthorisat
 		submission.PublicReviewReason = publicReviewReason.Trim();
 		submission.AdminReviewNote = string.IsNullOrWhiteSpace(adminReviewNote) ? null : adminReviewNote.Trim();
 		submission.ReviewedAt = DateTime.UtcNow;
+		await context.Submissions.SaveAsync(submission, cancellationToken);
 
 		return submission;
 	}

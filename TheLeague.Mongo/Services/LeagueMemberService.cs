@@ -120,6 +120,7 @@ public class LeagueMemberService(LeagueDataContext context, ILeagueAuthorisation
 		}
 
 		member.Role = role;
+		await context.Members.SaveAsync(member, cancellationToken);
 		return member;
 	}
 
@@ -148,17 +149,20 @@ public class LeagueMemberService(LeagueDataContext context, ILeagueAuthorisation
 			offlineMember.UserId = account.Id;
 			offlineMember.EmailAddress = normalizedEmail;
 			offlineMember.IsOfflineMember = false;
+			await context.Members.SaveAsync(offlineMember, cancellationToken);
 			return offlineMember;
 		}
 
 		foreach (var allocation in context.Allocations.Values.Where(allocation => allocation.LeagueMemberId == offlineMember.Id))
 		{
 			allocation.LeagueMemberId = existingMember.Id;
+			await context.Allocations.SaveAsync(allocation, cancellationToken);
 		}
 
 		foreach (var submission in context.Submissions.Values.Where(submission => submission.LeagueMemberId == offlineMember.Id))
 		{
 			submission.LeagueMemberId = existingMember.Id;
+			await context.Submissions.SaveAsync(submission, cancellationToken);
 		}
 
 		foreach (var challenge in context.Challenges.Values.Where(challenge => challenge.LeagueId == leagueId))
@@ -168,10 +172,12 @@ public class LeagueMemberService(LeagueDataContext context, ILeagueAuthorisation
 			ReplaceMemberId(challenge.RejectedMemberIds, offlineMember.Id, existingMember.Id);
 			ReplaceMemberId(challenge.CompletedMemberIds, offlineMember.Id, existingMember.Id);
 			ReplaceMemberId(challenge.FailedMemberIds, offlineMember.Id, existingMember.Id);
+			await context.Challenges.SaveAsync(challenge, cancellationToken);
 		}
 
 		offlineMember.Status = LeagueMemberStatus.Removed;
 		offlineMember.EmailAddress = normalizedEmail;
+		await context.Members.SaveAsync(offlineMember, cancellationToken);
 		return existingMember;
 	}
 

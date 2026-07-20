@@ -82,6 +82,7 @@ public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationSer
 
 		challenge.RejectedMemberIds.Remove(member.Id);
 		challenge.UpdatedAt = DateTime.UtcNow;
+		await context.Challenges.SaveAsync(challenge, cancellationToken);
 		return challenge;
 	}
 
@@ -97,6 +98,7 @@ public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationSer
 
 		challenge.AcceptedMemberIds.Remove(member.Id);
 		challenge.UpdatedAt = DateTime.UtcNow;
+		await context.Challenges.SaveAsync(challenge, cancellationToken);
 
 		var allocation = GetOrCreatePenaltyAllocation(leagueId, userId, member.Id, challenge, "Rejected challenge");
 		return (challenge, allocation);
@@ -119,6 +121,7 @@ public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationSer
 
 		challenge.FailedMemberIds.Remove(member.Id);
 		challenge.UpdatedAt = DateTime.UtcNow;
+		await context.Challenges.SaveAsync(challenge, cancellationToken);
 
 		var existingAllocation = context.Allocations.Values.SingleOrDefault(allocation =>
 			allocation.ChallengeId == challenge.Id &&
@@ -162,6 +165,7 @@ public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationSer
 		}
 
 		challenge.UpdatedAt = DateTime.UtcNow;
+		await context.Challenges.SaveAsync(challenge, cancellationToken);
 
 		var allocation = GetOrCreatePenaltyAllocation(leagueId, userId, member.Id, challenge, "Failed challenge");
 		return (challenge, allocation);
