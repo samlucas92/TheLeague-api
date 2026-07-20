@@ -123,10 +123,13 @@ public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationSer
 		challenge.UpdatedAt = DateTime.UtcNow;
 		await context.Challenges.SaveAsync(challenge, cancellationToken);
 
-		var existingAllocation = context.Allocations.Values.SingleOrDefault(allocation =>
-			allocation.ChallengeId == challenge.Id &&
-			allocation.LeagueMemberId == member.Id &&
-			allocation.Source == PointAllocationSource.AdminAward);
+		var existingAllocation = context.Allocations.Values
+			.Where(allocation =>
+				allocation.ChallengeId == challenge.Id &&
+				allocation.LeagueMemberId == member.Id &&
+				allocation.Source == PointAllocationSource.AdminAward)
+			.OrderByDescending(allocation => allocation.AwardedAt)
+			.FirstOrDefault();
 		if (existingAllocation is not null)
 		{
 			return (challenge, existingAllocation);
@@ -216,10 +219,13 @@ public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationSer
 			penaltyPoints = -Math.Abs(challenge.PointsForSuccess);
 		}
 
-		var existingPenalty = context.Allocations.Values.SingleOrDefault(allocation =>
-			allocation.ChallengeId == challenge.Id &&
-			allocation.LeagueMemberId == memberId &&
-			allocation.Source == PointAllocationSource.AdminPenalty);
+		var existingPenalty = context.Allocations.Values
+			.Where(allocation =>
+				allocation.ChallengeId == challenge.Id &&
+				allocation.LeagueMemberId == memberId &&
+				allocation.Source == PointAllocationSource.AdminPenalty)
+			.OrderByDescending(allocation => allocation.AwardedAt)
+			.FirstOrDefault();
 		if (existingPenalty is not null)
 		{
 			return existingPenalty;

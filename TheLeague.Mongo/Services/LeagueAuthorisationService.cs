@@ -9,10 +9,14 @@ public class LeagueAuthorisationService(LeagueDataContext context) : ILeagueAuth
 {
 	public Task<LeagueMember> GetRequiredMembershipAsync(Guid leagueId, Guid userId, CancellationToken cancellationToken = default)
 	{
-		var member = context.Members.Values.SingleOrDefault(member =>
-			member.LeagueId == leagueId &&
-			member.UserId == userId &&
-			member.Status == LeagueMemberStatus.Active);
+		var member = context.Members.Values
+			.Where(member =>
+				member.LeagueId == leagueId &&
+				member.UserId == userId &&
+				member.Status == LeagueMemberStatus.Active)
+			.OrderByDescending(member => member.Role)
+			.ThenByDescending(member => member.JoinedAt)
+			.FirstOrDefault();
 
 		if (member is null)
 		{

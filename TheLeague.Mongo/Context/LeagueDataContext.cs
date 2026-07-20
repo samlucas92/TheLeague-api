@@ -37,6 +37,7 @@ public class LeagueDataContext
 		Submissions = MongoEntitySet<PointSubmission>.FromCollection(database.GetCollection<PointSubmission>("submissions"));
 		Allocations = MongoEntitySet<PointAllocation>.FromCollection(database.GetCollection<PointAllocation>("allocations"));
 		AuditEntries = MongoEntitySet<LeagueAuditEntry>.FromCollection(database.GetCollection<LeagueAuditEntry>("auditEntries"));
+		CreateIndexes(database);
 	}
 
 	public MongoEntitySet<UserAccount> Users { get; }
@@ -46,6 +47,24 @@ public class LeagueDataContext
 	public MongoEntitySet<PointSubmission> Submissions { get; }
 	public MongoEntitySet<PointAllocation> Allocations { get; }
 	public MongoEntitySet<LeagueAuditEntry> AuditEntries { get; }
+
+	private static void CreateIndexes(IMongoDatabase database)
+	{
+		CreateIndex(database.GetCollection<UserAccount>("users"), Builders<UserAccount>.IndexKeys.Ascending(user => user.EmailAddress), "ux_users_email", unique: true);
+		CreateIndex(database.GetCollection<League>("leagues"), Builders<League>.IndexKeys.Ascending(league => league.JoinCode), "ux_leagues_join_code", unique: true);
+	}
+
+	private static void CreateIndex<T>(IMongoCollection<T> collection, IndexKeysDefinition<T> keys, string name, bool unique) where T : class
+	{
+		try
+		{
+			collection.Indexes.CreateOne(new CreateIndexModel<T>(keys, new CreateIndexOptions { Name = name, Unique = unique }));
+		}
+		catch (MongoCommandException exception) when (exception.CodeName is "IndexOptionsConflict" or "IndexKeySpecsConflict" or "DuplicateKey" || exception.Code == 11000)
+		{
+			// Keep booting if Atlas already has indexes or duplicate seed data from an earlier deploy.
+		}
+	}
 }
 
 public class MongoEntitySet<T> where T : class

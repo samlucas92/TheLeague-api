@@ -20,7 +20,10 @@ public class LeagueMemberService(LeagueDataContext context, ILeagueAuthorisation
 	public Task<LeagueMember> JoinAsync(Guid userId, string joinCode, string displayName, CancellationToken cancellationToken = default)
 	{
 		var normalizedCode = LeagueService.NormalizeJoinCode(joinCode);
-		var league = context.Leagues.Values.SingleOrDefault(league => league.JoinCode == normalizedCode);
+		var league = context.Leagues.Values
+			.Where(league => league.JoinCode == normalizedCode)
+			.OrderByDescending(league => league.CreatedAt)
+			.FirstOrDefault();
 		if (league is null)
 		{
 			throw new InvalidOperationException("Join code was not found.");
@@ -134,16 +137,22 @@ public class LeagueMemberService(LeagueDataContext context, ILeagueAuthorisation
 		}
 
 		var normalizedEmail = UserService.NormalizeEmail(emailAddress);
-		var account = context.Users.Values.SingleOrDefault(user => user.EmailAddress == normalizedEmail);
+		var account = context.Users.Values
+			.Where(user => user.EmailAddress == normalizedEmail)
+			.OrderByDescending(user => user.CreatedAt)
+			.FirstOrDefault();
 		if (account is null)
 		{
 			throw new InvalidOperationException("No registered user exists with that email address.");
 		}
 
-		var existingMember = context.Members.Values.SingleOrDefault(member =>
-			member.LeagueId == leagueId &&
-			member.UserId == account.Id &&
-			member.Status == LeagueMemberStatus.Active);
+		var existingMember = context.Members.Values
+			.Where(member =>
+				member.LeagueId == leagueId &&
+				member.UserId == account.Id &&
+				member.Status == LeagueMemberStatus.Active)
+			.OrderByDescending(member => member.JoinedAt)
+			.FirstOrDefault();
 		if (existingMember is null)
 		{
 			offlineMember.UserId = account.Id;

@@ -69,7 +69,10 @@ public class LeagueService(
 	public Task<JoinPreview> PreviewJoinAsync(string joinCode, CancellationToken cancellationToken = default)
 	{
 		var normalized = NormalizeJoinCode(joinCode);
-		var league = context.Leagues.Values.SingleOrDefault(league => league.JoinCode == normalized && league.Status == LeagueStatus.Active);
+		var league = context.Leagues.Values
+			.Where(league => league.JoinCode == normalized && league.Status == LeagueStatus.Active)
+			.OrderByDescending(league => league.CreatedAt)
+			.FirstOrDefault();
 		if (league is null)
 		{
 			throw new InvalidOperationException("Join code was not found.");
@@ -87,7 +90,10 @@ public class LeagueService(
 	public async Task<PublicLeagueView> GetPublicViewAsync(string joinCode, CancellationToken cancellationToken = default)
 	{
 		var normalized = NormalizeJoinCode(joinCode);
-		var league = context.Leagues.Values.SingleOrDefault(league => league.JoinCode == normalized && league.Status == LeagueStatus.Active);
+		var league = context.Leagues.Values
+			.Where(league => league.JoinCode == normalized && league.Status == LeagueStatus.Active)
+			.OrderByDescending(league => league.CreatedAt)
+			.FirstOrDefault();
 		if (league is null)
 		{
 			throw new InvalidOperationException("Join code was not found.");

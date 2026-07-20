@@ -41,7 +41,10 @@ public class UserService(LeagueDataContext context) : IUserService
 	public Task<UserAccount?> ValidateCredentialsAsync(string emailAddress, string password, CancellationToken cancellationToken = default)
 	{
 		var normalizedEmail = NormalizeEmail(emailAddress);
-		var account = context.Users.Values.SingleOrDefault(user => user.EmailAddress == normalizedEmail);
+		var account = context.Users.Values
+			.Where(user => user.EmailAddress == normalizedEmail)
+			.OrderByDescending(user => user.CreatedAt)
+			.FirstOrDefault();
 
 		return Task.FromResult(account is not null && PasswordHasher.Verify(password, account.PasswordHash) ? account : null);
 	}
@@ -55,7 +58,10 @@ public class UserService(LeagueDataContext context) : IUserService
 	public Task<UserAccount?> GetByEmailAsync(string emailAddress, CancellationToken cancellationToken = default)
 	{
 		var normalizedEmail = NormalizeEmail(emailAddress);
-		return Task.FromResult(context.Users.Values.SingleOrDefault(user => user.EmailAddress == normalizedEmail));
+		return Task.FromResult(context.Users.Values
+			.Where(user => user.EmailAddress == normalizedEmail)
+			.OrderByDescending(user => user.CreatedAt)
+			.FirstOrDefault());
 	}
 
 	internal static string NormalizeEmail(string emailAddress)
