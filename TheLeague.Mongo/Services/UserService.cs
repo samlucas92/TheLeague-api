@@ -19,7 +19,7 @@ public class UserService(LeagueDataContext context) : IUserService
 		}
 
 		var normalizedEmail = NormalizeEmail(emailAddress);
-		if (context.Users.Values.Any(user => user.EmailAddress == normalizedEmail))
+		if (context.Users.Values.Any(user => EmailMatches(user.EmailAddress, normalizedEmail)))
 		{
 			throw new InvalidOperationException("Email address is already registered.");
 		}
@@ -42,7 +42,7 @@ public class UserService(LeagueDataContext context) : IUserService
 	{
 		var normalizedEmail = NormalizeEmail(emailAddress);
 		var account = context.Users.Values
-			.Where(user => user.EmailAddress == normalizedEmail)
+			.Where(user => EmailMatches(user.EmailAddress, normalizedEmail))
 			.OrderByDescending(user => user.CreatedAt)
 			.FirstOrDefault(user => PasswordHasher.Verify(password, user.PasswordHash));
 
@@ -59,7 +59,7 @@ public class UserService(LeagueDataContext context) : IUserService
 	{
 		var normalizedEmail = NormalizeEmail(emailAddress);
 		return Task.FromResult(context.Users.Values
-			.Where(user => user.EmailAddress == normalizedEmail)
+			.Where(user => EmailMatches(user.EmailAddress, normalizedEmail))
 			.OrderByDescending(user => user.CreatedAt)
 			.FirstOrDefault());
 	}
@@ -73,4 +73,7 @@ public class UserService(LeagueDataContext context) : IUserService
 
 		return emailAddress.Trim().ToLowerInvariant();
 	}
+
+	private static bool EmailMatches(string storedEmailAddress, string normalizedEmailAddress) =>
+		string.Equals(storedEmailAddress?.Trim(), normalizedEmailAddress, StringComparison.OrdinalIgnoreCase);
 }

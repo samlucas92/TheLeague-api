@@ -106,7 +106,7 @@ api.MapPost("/auth/login", async (
 	var account = await userService.ValidateCredentialsAsync(request.EmailAddress, request.Password, cancellationToken);
 	if (account is null)
 	{
-		return Results.Unauthorized();
+		return Results.Json(new { error = "Email address or password is incorrect." }, statusCode: StatusCodes.Status401Unauthorized);
 	}
 
 	await SignInAsync(httpContext, account);

@@ -86,6 +86,24 @@ public class VerticalSliceTests
 	}
 
 	[Test]
+	public async Task LoginMatchesStoredEmailCaseInsensitively()
+	{
+		var accountId = Guid.NewGuid();
+		_context.Users[accountId] = new UserAccount
+		{
+			Id = accountId,
+			Name = "Sam",
+			EmailAddress = "SAM@example.com",
+			PasswordHash = PasswordHasher.Hash("password123"),
+			CreatedAt = DateTime.UtcNow
+		};
+
+		var account = await _users.ValidateCredentialsAsync("sam@example.com", "password123");
+
+		Assert.That(account?.Id, Is.EqualTo(accountId));
+	}
+
+	[Test]
 	public async Task ParticipantCannotApproveSubmission()
 	{
 		var owner = await _users.RegisterAsync("Sam", "sam@example.com", "password123");
