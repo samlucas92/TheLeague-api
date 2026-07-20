@@ -26,6 +26,7 @@ ASPNETCORE_ENVIRONMENT=Production
 PORT=8080
 Mongo__ConnectionString=<your MongoDB Atlas connection string>
 Mongo__DatabaseName=the-league
+Auth__TokenSigningKey=<a long random secret>
 Cors__AllowedOrigins__0=<your Vercel frontend origin, e.g. https://your-app.vercel.app>
 ```
 
