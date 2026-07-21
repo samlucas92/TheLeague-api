@@ -34,7 +34,9 @@ public interface ILeagueMemberService
 	Task<LeagueMember> JoinAsync(Guid userId, string joinCode, string displayName, CancellationToken cancellationToken = default);
 	Task<LeagueMember> CreateOwnerAsync(Guid leagueId, Guid ownerUserId, string displayName, CancellationToken cancellationToken = default);
 	Task<LeagueMember> AddOfflineMemberAsync(Guid leagueId, Guid userId, string displayName, string? emailAddress, LeagueMemberRole role, CancellationToken cancellationToken = default);
+	Task<LeagueMember> UpdateAsync(Guid leagueId, Guid userId, Guid memberId, string displayName, string? emailAddress, LeagueMemberRole role, CancellationToken cancellationToken = default);
 	Task<LeagueMember> ChangeRoleAsync(Guid leagueId, Guid userId, Guid memberId, LeagueMemberRole role, CancellationToken cancellationToken = default);
+	Task DeleteAsync(Guid leagueId, Guid userId, Guid memberId, CancellationToken cancellationToken = default);
 	Task<LeagueMember> LinkOfflineMemberAsync(Guid leagueId, Guid userId, Guid memberId, string emailAddress, CancellationToken cancellationToken = default);
 }
 
@@ -48,6 +50,8 @@ public interface IChallengeService
 	Task<IReadOnlyCollection<ChallengeListItem>> ListAsync(Guid leagueId, Guid userId, CancellationToken cancellationToken = default);
 	Task<IReadOnlyCollection<ChallengeListItem>> ListPublicAsync(Guid leagueId, CancellationToken cancellationToken = default);
 	Task<Challenge> CreateAsync(Guid leagueId, Guid userId, Challenge challenge, CancellationToken cancellationToken = default);
+	Task<Challenge> UpdateAsync(Guid leagueId, Guid userId, Guid challengeId, Challenge challenge, CancellationToken cancellationToken = default);
+	Task DeleteAsync(Guid leagueId, Guid userId, Guid challengeId, CancellationToken cancellationToken = default);
 	Task<Challenge> AcceptAsync(Guid leagueId, Guid userId, Guid challengeId, CancellationToken cancellationToken = default);
 	Task<(Challenge Challenge, PointAllocation Penalty)> RejectAsync(Guid leagueId, Guid userId, Guid challengeId, CancellationToken cancellationToken = default);
 	Task<(Challenge Challenge, PointAllocation Allocation)> CompleteAsync(Guid leagueId, Guid userId, Guid challengeId, CancellationToken cancellationToken = default);
@@ -65,7 +69,9 @@ public interface IPointSubmissionService
 
 public interface IPointAllocationService
 {
-	Task<PointAllocation> CreateManualAsync(Guid leagueId, Guid userId, Guid leagueMemberId, int points, string reason, CancellationToken cancellationToken = default);
+	Task<ManualPointsResult> CreateManualAsync(Guid leagueId, Guid userId, Guid leagueMemberId, int points, string reason, CancellationToken cancellationToken = default);
+	Task<PointAllocation> UpdateAsync(Guid leagueId, Guid userId, Guid allocationId, Guid leagueMemberId, int points, string reason, CancellationToken cancellationToken = default);
+	Task DeleteAsync(Guid leagueId, Guid userId, Guid allocationId, CancellationToken cancellationToken = default);
 	Task<IReadOnlyCollection<PointsFeedItem>> ListFeedAsync(Guid leagueId, Guid userId, CancellationToken cancellationToken = default);
 	Task<IReadOnlyCollection<PointsFeedItem>> ListPublicFeedAsync(Guid leagueId, CancellationToken cancellationToken = default);
 }

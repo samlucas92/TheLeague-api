@@ -40,6 +40,29 @@ public class ChallengesController(IChallengeService challengeService) : Controll
 		return Created($"/api/leagues/{leagueId}/challenges", await challengeService.CreateAsync(leagueId, User.GetRequiredUserId(), challenge, cancellationToken));
 	}
 
+	[HttpPut("{challengeId:guid}")]
+	public async Task<IActionResult> Update(Guid leagueId, Guid challengeId, UpdateChallengeRequest request, CancellationToken cancellationToken)
+	{
+		var challenge = new Challenge
+		{
+			Name = request.Name,
+			Description = request.Description,
+			TargetMemberIds = request.TargetMemberIds?.ToList() ?? [],
+			PointsForSuccess = request.PointsForSuccess,
+			PointsForFailure = request.PointsForFailure,
+			IsActive = request.IsActive
+		};
+
+		return Ok(await challengeService.UpdateAsync(leagueId, User.GetRequiredUserId(), challengeId, challenge, cancellationToken));
+	}
+
+	[HttpDelete("{challengeId:guid}")]
+	public async Task<IActionResult> Delete(Guid leagueId, Guid challengeId, CancellationToken cancellationToken)
+	{
+		await challengeService.DeleteAsync(leagueId, User.GetRequiredUserId(), challengeId, cancellationToken);
+		return NoContent();
+	}
+
 	[HttpPost("{challengeId:guid}/accept")]
 	public async Task<IActionResult> Accept(Guid leagueId, Guid challengeId, CancellationToken cancellationToken) =>
 		Ok(await challengeService.AcceptAsync(leagueId, User.GetRequiredUserId(), challengeId, cancellationToken));

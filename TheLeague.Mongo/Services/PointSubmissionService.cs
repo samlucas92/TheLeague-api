@@ -111,9 +111,9 @@ public class PointSubmissionService(LeagueDataContext context, ILeagueAuthorisat
 			throw new InvalidOperationException("Only pending submissions can be approved.");
 		}
 
-		if (submission.SubmittedByUserId == userId && reviewer.Id == submission.LeagueMemberId)
+		if (submission.SubmittedByUserId == userId)
 		{
-			throw new InvalidOperationException("Participants cannot approve their own submission.");
+			throw new InvalidOperationException("You cannot approve your own submission.");
 		}
 
 		if (context.Allocations.Values.Any(allocation => allocation.SubmissionId == submission.Id && allocation.Source == PointAllocationSource.ApprovedSubmission))
@@ -121,8 +121,8 @@ public class PointSubmissionService(LeagueDataContext context, ILeagueAuthorisat
 			throw new InvalidOperationException("This submission already has an approved allocation.");
 		}
 
-		var challenge = GetChallenge(leagueId, submission.ChallengeId);
-		var points = approvedPoints ?? submission.RequestedPoints ?? challenge.FixedPoints;
+		var challenge = submission.ChallengeId.HasValue ? GetChallenge(leagueId, submission.ChallengeId.Value) : null;
+		var points = approvedPoints ?? submission.RequestedPoints ?? challenge?.FixedPoints;
 		if (!points.HasValue)
 		{
 			throw new InvalidOperationException("Approved points are required.");
@@ -211,12 +211,15 @@ public class PointSubmissionService(LeagueDataContext context, ILeagueAuthorisat
 
 	private SubmissionListItem ToListItem(PointSubmission submission)
 	{
-		var challenge = context.Challenges[submission.ChallengeId];
 		var member = context.Members[submission.LeagueMemberId];
+		var challengeName = submission.ChallengeId.HasValue && context.Challenges.TryGetValue(submission.ChallengeId.Value, out var challenge)
+			? challenge.Name
+			: "Manual points";
+
 		return new SubmissionListItem(
 			submission.Id,
 			submission.ChallengeId,
-			challenge.Name,
+			challengeName,
 			submission.LeagueMemberId,
 			member.DisplayName,
 			submission.RequestedPoints,

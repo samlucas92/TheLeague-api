@@ -20,4 +20,15 @@ public class PointsController(IPointAllocationService allocationService) : Contr
 		Created(
 			$"/api/leagues/{leagueId}/points-feed",
 			await allocationService.CreateManualAsync(leagueId, User.GetRequiredUserId(), request.LeagueMemberId, request.Points, request.Reason, cancellationToken));
+
+	[HttpPut("allocations/{allocationId:guid}")]
+	public async Task<IActionResult> UpdateAllocation(Guid leagueId, Guid allocationId, UpdateManualAllocationRequest request, CancellationToken cancellationToken) =>
+		Ok(await allocationService.UpdateAsync(leagueId, User.GetRequiredUserId(), allocationId, request.LeagueMemberId, request.Points, request.Reason, cancellationToken));
+
+	[HttpDelete("allocations/{allocationId:guid}")]
+	public async Task<IActionResult> DeleteAllocation(Guid leagueId, Guid allocationId, CancellationToken cancellationToken)
+	{
+		await allocationService.DeleteAsync(leagueId, User.GetRequiredUserId(), allocationId, cancellationToken);
+		return NoContent();
+	}
 }

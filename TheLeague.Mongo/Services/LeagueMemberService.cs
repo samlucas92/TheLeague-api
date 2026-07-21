@@ -104,27 +104,51 @@ public class LeagueMemberService(LeagueDataContext context, ILeagueAuthorisation
 		return member;
 	}
 
+	public async Task<LeagueMember> UpdateAsync(Guid leagueId, Guid userId, Guid memberId, string displayName, string? emailAddress, LeagueMemberRole role, CancellationToken cancellationToken = default)
+	{
+		var adminMembership = await authorisationService.GetRequiredAdminMembershipAsync(leagueId, userId, cancellationToken);
+		var member = GetLeagueMember(leagueId, memberId);
+		await EnsureCanSetRoleAsync(leagueId, userId, adminMembership, member, role, cancellationToken);
+
+		member.DisplayName = ValidateDisplayName(leagueId, displayName, member.Id);
+		member.EmailAddress = NormalizeOptionalEmail(emailAddress);
+		member.Role = role;
+		await context.Members.SaveAsync(member, cancellationToken);
+		return member;
+	}
+
 	public async Task<LeagueMember> ChangeRoleAsync(Guid leagueId, Guid userId, Guid memberId, LeagueMemberRole role, CancellationToken cancellationToken = default)
 	{
-		await authorisationService.GetRequiredAdminMembershipAsync(leagueId, userId, cancellationToken);
+		var adminMembership = await authorisationService.GetRequiredAdminMembershipAsync(leagueId, userId, cancellationToken);
 		var member = GetLeagueMember(leagueId, memberId);
-		if (role == LeagueMemberRole.Owner)
-		{
-			await authorisationService.GetRequiredOwnerMembershipAsync(leagueId, userId, cancellationToken);
-		}
-
-		if (member.Role == LeagueMemberRole.Owner && role != LeagueMemberRole.Owner)
-		{
-			var ownerCount = context.Members.Values.Count(candidate => candidate.LeagueId == leagueId && candidate.Status == LeagueMemberStatus.Active && candidate.Role == LeagueMemberRole.Owner);
-			if (ownerCount <= 1)
-			{
-				throw new InvalidOperationException("There must always be at least one owner.");
-			}
-		}
+		await EnsureCanSetRoleAsync(leagueId, userId, adminMembership, member, role, cancellationToken);
 
 		member.Role = role;
 		await context.Members.SaveAsync(member, cancellationToken);
 		return member;
+	}
+
+	public async Task DeleteAsync(Guid leagueId, Guid userId, Guid memberId, CancellationToken cancellationToken = default)
+	{
+		var adminMembership = await authorisationService.GetRequiredAdminMembershipAsync(leagueId, userId, cancellationToken);
+		var member = GetLeagueMember(leagueId, memberId);
+		if (member.UserId == userId)
+		{
+			throw new InvalidOperationException("You cannot remove yourself.");
+		}
+
+		if (member.Role == LeagueMemberRole.Owner || (member.Role == LeagueMemberRole.Admin && adminMembership.Role != LeagueMemberRole.Owner))
+		{
+			await authorisationService.GetRequiredOwnerMembershipAsync(leagueId, userId, cancellationToken);
+		}
+
+		if (member.Role == LeagueMemberRole.Owner)
+		{
+			EnsureAnotherOwnerRemains(leagueId);
+		}
+
+		member.Status = LeagueMemberStatus.Removed;
+		await context.Members.SaveAsync(member, cancellationToken);
 	}
 
 	public async Task<LeagueMember> LinkOfflineMemberAsync(Guid leagueId, Guid userId, Guid memberId, string emailAddress, CancellationToken cancellationToken = default)
@@ -190,7 +214,7 @@ public class LeagueMemberService(LeagueDataContext context, ILeagueAuthorisation
 		return existingMember;
 	}
 
-	private string ValidateDisplayName(Guid leagueId, string displayName)
+	private string ValidateDisplayName(Guid leagueId, string displayName, Guid? excludedMemberId = null)
 	{
 		if (string.IsNullOrWhiteSpace(displayName))
 		{
@@ -200,6 +224,7 @@ public class LeagueMemberService(LeagueDataContext context, ILeagueAuthorisation
 		var normalized = displayName.Trim();
 		if (context.Members.Values.Any(member =>
 			member.LeagueId == leagueId &&
+			member.Id != excludedMemberId &&
 			member.Status != LeagueMemberStatus.Removed &&
 			string.Equals(member.DisplayName, normalized, StringComparison.OrdinalIgnoreCase)))
 		{
@@ -217,6 +242,33 @@ public class LeagueMemberService(LeagueDataContext context, ILeagueAuthorisation
 		}
 
 		return member;
+	}
+
+	private async Task EnsureCanSetRoleAsync(Guid leagueId, Guid userId, LeagueMember adminMembership, LeagueMember member, LeagueMemberRole role, CancellationToken cancellationToken)
+	{
+		if (role == LeagueMemberRole.Owner || member.Role == LeagueMemberRole.Owner)
+		{
+			await authorisationService.GetRequiredOwnerMembershipAsync(leagueId, userId, cancellationToken);
+		}
+
+		if (member.Role == LeagueMemberRole.Owner && role != LeagueMemberRole.Owner)
+		{
+			EnsureAnotherOwnerRemains(leagueId);
+		}
+
+		if (adminMembership.Role != LeagueMemberRole.Owner && member.Role == LeagueMemberRole.Admin && role != LeagueMemberRole.Admin)
+		{
+			throw new UnauthorizedAccessException("Only owners can demote admins.");
+		}
+	}
+
+	private void EnsureAnotherOwnerRemains(Guid leagueId)
+	{
+		var ownerCount = context.Members.Values.Count(candidate => candidate.LeagueId == leagueId && candidate.Status == LeagueMemberStatus.Active && candidate.Role == LeagueMemberRole.Owner);
+		if (ownerCount <= 1)
+		{
+			throw new InvalidOperationException("There must always be at least one owner.");
+		}
 	}
 
 	private static string? NormalizeOptionalEmail(string? emailAddress)

@@ -6,7 +6,7 @@ public class PointSubmission
 {
 	public Guid Id { get; set; }
 	public Guid LeagueId { get; set; }
-	public Guid ChallengeId { get; set; }
+	public Guid? ChallengeId { get; set; }
 	public Guid LeagueMemberId { get; set; }
 	public Guid SubmittedByUserId { get; set; }
 	public int? RequestedPoints { get; set; }

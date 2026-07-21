@@ -138,6 +138,18 @@ public class MongoEntitySet<T> where T : class
 			cancellationToken);
 	}
 
+	public async Task<bool> RemoveAsync(Guid id, CancellationToken cancellationToken = default)
+	{
+		var removed = items.TryRemove(id, out _);
+		if (collection is null)
+		{
+			return removed;
+		}
+
+		var result = await collection.DeleteOneAsync(Builders<T>.Filter.Eq("_id", id), cancellationToken);
+		return removed || result.DeletedCount > 0;
+	}
+
 	private static Guid GetId(T item)
 	{
 		if (IdProperty.GetValue(item) is not Guid id || id == Guid.Empty)

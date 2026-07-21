@@ -29,24 +29,7 @@ public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationSer
 	{
 		await authorisationService.GetRequiredMembershipAsync(leagueId, userId, cancellationToken);
 
-		if (string.IsNullOrWhiteSpace(challenge.Name))
-		{
-			throw new InvalidOperationException("Challenge name is required.");
-		}
-
-		if (challenge.TargetMemberIds.Count == 0)
-		{
-			throw new InvalidOperationException("Choose at least one challenged person.");
-		}
-
-		var distinctTargets = challenge.TargetMemberIds.Distinct().ToList();
-		foreach (var targetMemberId in distinctTargets)
-		{
-			if (!context.Members.TryGetValue(targetMemberId, out var member) || member.LeagueId != leagueId || member.Status != LeagueMemberStatus.Active)
-			{
-				throw new InvalidOperationException("A challenged person was not found.");
-			}
-		}
+		var distinctTargets = ValidateChallenge(leagueId, challenge);
 
 		challenge.Id = Guid.NewGuid();
 		challenge.LeagueId = leagueId;
@@ -68,6 +51,37 @@ public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationSer
 
 		context.Challenges[challenge.Id] = challenge;
 		return challenge;
+	}
+
+	public async Task<Challenge> UpdateAsync(Guid leagueId, Guid userId, Guid challengeId, Challenge updates, CancellationToken cancellationToken = default)
+	{
+		var membership = await authorisationService.GetRequiredMembershipAsync(leagueId, userId, cancellationToken);
+		var challenge = GetChallenge(leagueId, challengeId);
+		EnsureCanMaintainChallenge(membership, challenge);
+		var distinctTargets = ValidateChallenge(leagueId, updates);
+
+		challenge.Name = updates.Name.Trim();
+		challenge.Description = string.IsNullOrWhiteSpace(updates.Description) ? null : updates.Description.Trim();
+		challenge.TargetMemberIds = distinctTargets;
+		challenge.AcceptedMemberIds = challenge.AcceptedMemberIds.Where(distinctTargets.Contains).Distinct().ToList();
+		challenge.RejectedMemberIds = challenge.RejectedMemberIds.Where(distinctTargets.Contains).Distinct().ToList();
+		challenge.CompletedMemberIds = challenge.CompletedMemberIds.Where(distinctTargets.Contains).Distinct().ToList();
+		challenge.FailedMemberIds = challenge.FailedMemberIds.Where(distinctTargets.Contains).Distinct().ToList();
+		challenge.PointsForSuccess = updates.PointsForSuccess;
+		challenge.PointsForFailure = updates.PointsForFailure > 0 ? -updates.PointsForFailure : updates.PointsForFailure;
+		challenge.FixedPoints = challenge.PointsForSuccess;
+		challenge.IsActive = updates.IsActive;
+		challenge.UpdatedAt = DateTime.UtcNow;
+		await context.Challenges.SaveAsync(challenge, cancellationToken);
+		return challenge;
+	}
+
+	public async Task DeleteAsync(Guid leagueId, Guid userId, Guid challengeId, CancellationToken cancellationToken = default)
+	{
+		var membership = await authorisationService.GetRequiredMembershipAsync(leagueId, userId, cancellationToken);
+		var challenge = GetChallenge(leagueId, challengeId);
+		EnsureCanMaintainChallenge(membership, challenge);
+		await context.Challenges.RemoveAsync(challengeId, cancellationToken);
 	}
 
 	public async Task<Challenge> AcceptAsync(Guid leagueId, Guid userId, Guid challengeId, CancellationToken cancellationToken = default)
@@ -176,10 +190,7 @@ public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationSer
 
 	private Challenge GetTargetedChallenge(Guid leagueId, Guid challengeId, Guid memberId)
 	{
-		if (!context.Challenges.TryGetValue(challengeId, out var challenge) || challenge.LeagueId != leagueId)
-		{
-			throw new InvalidOperationException("Challenge was not found.");
-		}
+		var challenge = GetChallenge(leagueId, challengeId);
 
 		if (!challenge.TargetMemberIds.Contains(memberId))
 		{
@@ -187,6 +198,55 @@ public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationSer
 		}
 
 		return challenge;
+	}
+
+	private Challenge GetChallenge(Guid leagueId, Guid challengeId)
+	{
+		if (!context.Challenges.TryGetValue(challengeId, out var challenge) || challenge.LeagueId != leagueId)
+		{
+			throw new InvalidOperationException("Challenge was not found.");
+		}
+
+		return challenge;
+	}
+
+	private List<Guid> ValidateChallenge(Guid leagueId, Challenge challenge)
+	{
+		if (string.IsNullOrWhiteSpace(challenge.Name))
+		{
+			throw new InvalidOperationException("Challenge name is required.");
+		}
+
+		if (challenge.TargetMemberIds.Count == 0)
+		{
+			throw new InvalidOperationException("Choose at least one challenged person.");
+		}
+
+		var distinctTargets = challenge.TargetMemberIds.Distinct().ToList();
+		foreach (var targetMemberId in distinctTargets)
+		{
+			if (!context.Members.TryGetValue(targetMemberId, out var member) || member.LeagueId != leagueId || member.Status != LeagueMemberStatus.Active)
+			{
+				throw new InvalidOperationException("A challenged person was not found.");
+			}
+		}
+
+		if (challenge.PointsForSuccess == 0)
+		{
+			throw new InvalidOperationException("Completion points are required.");
+		}
+
+		return distinctTargets;
+	}
+
+	private static void EnsureCanMaintainChallenge(LeagueMember membership, Challenge challenge)
+	{
+		if (challenge.CreatedByUserId == membership.UserId || membership.Role is LeagueMemberRole.Admin or LeagueMemberRole.Owner)
+		{
+			return;
+		}
+
+		throw new UnauthorizedAccessException("Only the challenge creator or a league admin can change this challenge.");
 	}
 
 	private ChallengeListItem ToListItem(Challenge challenge)
@@ -197,6 +257,7 @@ public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationSer
 
 		return new ChallengeListItem(
 			challenge.Id,
+			challenge.CreatedByUserId,
 			challenge.Name,
 			challenge.Description,
 			challenge.TargetMemberIds,

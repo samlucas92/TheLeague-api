@@ -21,10 +21,19 @@ public record CreateChallengeRequest(
 	int? SubmissionLimit,
 	bool RequiresEvidence,
 	bool IsSecret);
+public record UpdateChallengeRequest(
+	string Name,
+	string? Description,
+	IReadOnlyCollection<Guid>? TargetMemberIds,
+	int PointsForSuccess,
+	int PointsForFailure,
+	bool IsActive);
 public record CreateSubmissionRequest(Guid ChallengeId, Guid? LeagueMemberId, int? RequestedPoints, string PublicReason);
 public record ApproveSubmissionRequest(int? ApprovedPoints, string PublicReviewReason, string? AdminReviewNote);
 public record RejectSubmissionRequest(string PublicReviewReason, string? AdminReviewNote);
 public record CreateManualAllocationRequest(Guid LeagueMemberId, int Points, string Reason);
+public record UpdateManualAllocationRequest(Guid LeagueMemberId, int Points, string Reason);
 public record AddOfflineMemberRequest(string DisplayName, string? EmailAddress, LeagueMemberRole Role);
+public record UpdateMemberRequest(string DisplayName, string? EmailAddress, LeagueMemberRole Role);
 public record ChangeMemberRoleRequest(LeagueMemberRole Role);
 public record LinkOfflineMemberRequest(string EmailAddress);

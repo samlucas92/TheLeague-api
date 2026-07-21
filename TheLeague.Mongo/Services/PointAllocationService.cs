@@ -7,23 +7,28 @@ namespace TheLeague.Mongo.Services;
 
 public class PointAllocationService(LeagueDataContext context, ILeagueAuthorisationService authorisationService) : IPointAllocationService
 {
-	public async Task<PointAllocation> CreateManualAsync(Guid leagueId, Guid userId, Guid leagueMemberId, int points, string reason, CancellationToken cancellationToken = default)
+	public async Task<ManualPointsResult> CreateManualAsync(Guid leagueId, Guid userId, Guid leagueMemberId, int points, string reason, CancellationToken cancellationToken = default)
 	{
-		await authorisationService.GetRequiredAdminMembershipAsync(leagueId, userId, cancellationToken);
+		var requester = await authorisationService.GetRequiredMembershipAsync(leagueId, userId, cancellationToken);
+		ValidateManualRequest(leagueId, leagueMemberId, points, reason);
 
-		if (!context.Members.TryGetValue(leagueMemberId, out var member) || member.LeagueId != leagueId || member.Status != LeagueMemberStatus.Active)
+		if (requester.Role is not (LeagueMemberRole.Admin or LeagueMemberRole.Owner))
 		{
-			throw new InvalidOperationException("League member was not found.");
-		}
+			var submission = new PointSubmission
+			{
+				Id = Guid.NewGuid(),
+				LeagueId = leagueId,
+				ChallengeId = null,
+				LeagueMemberId = leagueMemberId,
+				SubmittedByUserId = userId,
+				RequestedPoints = points,
+				PublicReason = reason.Trim(),
+				Status = PointSubmissionStatus.Pending,
+				SubmittedAt = DateTime.UtcNow
+			};
 
-		if (points == 0)
-		{
-			throw new InvalidOperationException("Points must be positive or negative.");
-		}
-
-		if (string.IsNullOrWhiteSpace(reason))
-		{
-			throw new InvalidOperationException("A reason is required.");
+			context.Submissions[submission.Id] = submission;
+			return new ManualPointsResult("Pending", null, submission);
 		}
 
 		var allocation = new PointAllocation
@@ -39,7 +44,38 @@ public class PointAllocationService(LeagueDataContext context, ILeagueAuthorisat
 		};
 
 		context.Allocations[allocation.Id] = allocation;
+		return new ManualPointsResult("Approved", allocation, null);
+	}
+
+	public async Task<PointAllocation> UpdateAsync(Guid leagueId, Guid userId, Guid allocationId, Guid leagueMemberId, int points, string reason, CancellationToken cancellationToken = default)
+	{
+		await authorisationService.GetRequiredAdminMembershipAsync(leagueId, userId, cancellationToken);
+		ValidateManualRequest(leagueId, leagueMemberId, points, reason);
+
+		if (!context.Allocations.TryGetValue(allocationId, out var allocation) || allocation.LeagueId != leagueId)
+		{
+			throw new InvalidOperationException("Point allocation was not found.");
+		}
+
+		allocation.LeagueMemberId = leagueMemberId;
+		allocation.Points = points;
+		allocation.Reason = reason.Trim();
+		allocation.Source = allocation.Source is PointAllocationSource.AdminAward or PointAllocationSource.AdminPenalty
+			? points > 0 ? PointAllocationSource.AdminAward : PointAllocationSource.AdminPenalty
+			: PointAllocationSource.Adjustment;
+		await context.Allocations.SaveAsync(allocation, cancellationToken);
 		return allocation;
+	}
+
+	public async Task DeleteAsync(Guid leagueId, Guid userId, Guid allocationId, CancellationToken cancellationToken = default)
+	{
+		await authorisationService.GetRequiredAdminMembershipAsync(leagueId, userId, cancellationToken);
+		if (!context.Allocations.TryGetValue(allocationId, out var allocation) || allocation.LeagueId != leagueId)
+		{
+			throw new InvalidOperationException("Point allocation was not found.");
+		}
+
+		await context.Allocations.RemoveAsync(allocationId, cancellationToken);
 	}
 
 	public async Task<IReadOnlyCollection<PointsFeedItem>> ListFeedAsync(Guid leagueId, Guid userId, CancellationToken cancellationToken = default)
@@ -79,5 +115,23 @@ public class PointAllocationService(LeagueDataContext context, ILeagueAuthorisat
 			.ToArray();
 
 		return Task.FromResult<IReadOnlyCollection<PointsFeedItem>>(items);
+	}
+
+	private void ValidateManualRequest(Guid leagueId, Guid leagueMemberId, int points, string reason)
+	{
+		if (!context.Members.TryGetValue(leagueMemberId, out var member) || member.LeagueId != leagueId || member.Status != LeagueMemberStatus.Active)
+		{
+			throw new InvalidOperationException("League member was not found.");
+		}
+
+		if (points == 0)
+		{
+			throw new InvalidOperationException("Points must be positive or negative.");
+		}
+
+		if (string.IsNullOrWhiteSpace(reason))
+		{
+			throw new InvalidOperationException("A reason is required.");
+		}
 	}
 }

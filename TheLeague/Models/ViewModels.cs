@@ -28,9 +28,11 @@ public record PointsFeedItem(
 	string AwardedByName,
 	DateTime AwardedAt);
 
+public record ManualPointsResult(string Status, PointAllocation? Allocation, PointSubmission? Submission);
+
 public record SubmissionListItem(
 	Guid Id,
-	Guid ChallengeId,
+	Guid? ChallengeId,
 	string ChallengeName,
 	Guid LeagueMemberId,
 	string DisplayName,
@@ -50,6 +52,7 @@ public record PublicLeagueView(
 
 public record ChallengeListItem(
 	Guid Id,
+	Guid CreatedByUserId,
 	string Name,
 	string? Description,
 	IReadOnlyCollection<Guid> TargetMemberIds,

@@ -146,22 +146,29 @@ public class VerticalSliceTests
 		var leaderboard = await _leaderboard.GetAsync(league.Id, owner.Id);
 		var feed = await _allocations.ListFeedAsync(league.Id, owner.Id);
 
-		Assert.That(award.ChallengeId, Is.Null);
-		Assert.That(penalty.Source, Is.EqualTo(PointAllocationSource.AdminPenalty));
+		Assert.That(award.Status, Is.EqualTo("Approved"));
+		Assert.That(award.Allocation?.ChallengeId, Is.Null);
+		Assert.That(penalty.Allocation?.Source, Is.EqualTo(PointAllocationSource.AdminPenalty));
 		Assert.That(leaderboard.Single(row => row.LeagueMemberId == member.Id).ApprovedPoints, Is.EqualTo(10));
 		Assert.That(feed.Select(item => item.Reason), Does.Contain("Helped set up"));
 		Assert.That(feed.Select(item => item.Reason), Does.Contain("Late arrival"));
 	}
 
 	[Test]
-	public async Task ParticipantCannotAddManualPoints()
+	public async Task ParticipantManualPointsCreatePendingSubmission()
 	{
 		var owner = await _users.RegisterAsync("Sam", "sam@example.com", "password123");
 		var participant = await _users.RegisterAsync("Tom", "tom@example.com", "password123");
 		var league = await _leagues.CreateAsync(owner.Id, "Weekend League", null, LeaguePresetType.Custom, LeagueJoinMode.OpenWithCode);
 		var member = await _members.JoinAsync(participant.Id, league.JoinCode, "Tom");
 
-		Assert.ThrowsAsync<UnauthorizedAccessException>(() => _allocations.CreateManualAsync(league.Id, participant.Id, member.Id, 10, "Trying it"));
+		var result = await _allocations.CreateManualAsync(league.Id, participant.Id, member.Id, 10, "Trying it");
+		var pending = await _submissions.ListPendingAsync(league.Id, owner.Id);
+
+		Assert.That(result.Status, Is.EqualTo("Pending"));
+		Assert.That(result.Allocation, Is.Null);
+		Assert.That(result.Submission?.ChallengeId, Is.Null);
+		Assert.That(pending.Single().ChallengeName, Is.EqualTo("Manual points"));
 	}
 
 	[Test]
@@ -244,7 +251,7 @@ public class VerticalSliceTests
 	}
 
 	[Test]
-	public async Task PointApproverCanApproveButCannotAddManualPoints()
+	public async Task PointApproverCanApproveAndTheirManualPointsNeedApproval()
 	{
 		var owner = await _users.RegisterAsync("Sam", "sam@example.com", "password123");
 		var approverUser = await _users.RegisterAsync("Amy", "amy@example.com", "password123");
@@ -263,9 +270,83 @@ public class VerticalSliceTests
 		var submission = await _submissions.CreateAsync(league.Id, participant.Id, challenge.Id, null, null, "Won");
 
 		var approval = await _submissions.ApproveAsync(league.Id, approverUser.Id, submission.Id, null, "Won", null);
+		var manualRequest = await _allocations.CreateManualAsync(league.Id, approverUser.Id, participantMember.Id, 5, "Manual");
 
 		Assert.That(approval.Allocation.Points, Is.EqualTo(10));
-		Assert.ThrowsAsync<UnauthorizedAccessException>(() => _allocations.CreateManualAsync(league.Id, approverUser.Id, participantMember.Id, 5, "Manual"));
+		Assert.That(manualRequest.Status, Is.EqualTo("Pending"));
+		Assert.ThrowsAsync<InvalidOperationException>(() => _submissions.ApproveAsync(league.Id, approverUser.Id, manualRequest.Submission!.Id, 5, "Manual", null));
+	}
+
+	[Test]
+	public async Task AdminCanEditAndDeletePointAllocations()
+	{
+		var owner = await _users.RegisterAsync("Sam", "sam@example.com", "password123");
+		var participant = await _users.RegisterAsync("Tom", "tom@example.com", "password123");
+		var league = await _leagues.CreateAsync(owner.Id, "Weekend League", null, LeaguePresetType.Custom, LeagueJoinMode.OpenWithCode);
+		var member = await _members.JoinAsync(participant.Id, league.JoinCode, "Tom");
+		var result = await _allocations.CreateManualAsync(league.Id, owner.Id, member.Id, 10, "Original");
+
+		var updated = await _allocations.UpdateAsync(league.Id, owner.Id, result.Allocation!.Id, member.Id, 25, "Corrected");
+		var editedLeaderboard = await _leaderboard.GetAsync(league.Id, owner.Id);
+		await _allocations.DeleteAsync(league.Id, owner.Id, result.Allocation!.Id);
+		var deletedLeaderboard = await _leaderboard.GetAsync(league.Id, owner.Id);
+
+		Assert.That(updated.Points, Is.EqualTo(25));
+		Assert.That(updated.Reason, Is.EqualTo("Corrected"));
+		Assert.That(editedLeaderboard.Single(row => row.LeagueMemberId == member.Id).ApprovedPoints, Is.EqualTo(25));
+		Assert.That(deletedLeaderboard.Single(row => row.LeagueMemberId == member.Id).ApprovedPoints, Is.EqualTo(0));
+	}
+
+	[Test]
+	public async Task ChallengeCreatorCanEditAndDeleteChallenge()
+	{
+		var owner = await _users.RegisterAsync("Sam", "sam@example.com", "password123");
+		var participant = await _users.RegisterAsync("Tom", "tom@example.com", "password123");
+		var league = await _leagues.CreateAsync(owner.Id, "Weekend League", null, LeaguePresetType.Custom, LeagueJoinMode.OpenWithCode);
+		var member = await _members.JoinAsync(participant.Id, league.JoinCode, "Tom");
+		var challenge = await _challenges.CreateAsync(league.Id, participant.Id, new()
+		{
+			Name = "Sing karaoke",
+			TargetMemberIds = [member.Id],
+			PointsForSuccess = 10,
+			PointsForFailure = -5
+		});
+
+		var updated = await _challenges.UpdateAsync(league.Id, participant.Id, challenge.Id, new()
+		{
+			Name = "Sing two songs",
+			TargetMemberIds = [member.Id],
+			PointsForSuccess = 20,
+			PointsForFailure = -10,
+			IsActive = true
+		});
+		await _challenges.DeleteAsync(league.Id, owner.Id, challenge.Id);
+		var challenges = await _challenges.ListAsync(league.Id, owner.Id);
+
+		Assert.That(updated.Name, Is.EqualTo("Sing two songs"));
+		Assert.That(updated.PointsForSuccess, Is.EqualTo(20));
+		Assert.That(challenges.Select(item => item.Id), Does.Not.Contain(challenge.Id));
+	}
+
+	[Test]
+	public async Task AdminCanEditAndRemoveMembers()
+	{
+		var owner = await _users.RegisterAsync("Sam", "sam@example.com", "password123");
+		var adminUser = await _users.RegisterAsync("Amy", "amy@example.com", "password123");
+		var league = await _leagues.CreateAsync(owner.Id, "Weekend League", null, LeaguePresetType.Custom, LeagueJoinMode.OpenWithCode);
+		var adminMember = await _members.JoinAsync(adminUser.Id, league.JoinCode, "Amy");
+		await _members.ChangeRoleAsync(league.Id, owner.Id, adminMember.Id, LeagueMemberRole.Admin);
+		var offlineMember = await _members.AddOfflineMemberAsync(league.Id, owner.Id, "Kyle", "kyle-old@example.com", LeagueMemberRole.Participant);
+
+		var updated = await _members.UpdateAsync(league.Id, adminUser.Id, offlineMember.Id, "Kyle Morgan", "kyle@example.com", LeagueMemberRole.PointApprover);
+		await _members.DeleteAsync(league.Id, adminUser.Id, offlineMember.Id);
+		var members = await _members.ListAsync(league.Id, owner.Id);
+
+		Assert.That(updated.DisplayName, Is.EqualTo("Kyle Morgan"));
+		Assert.That(updated.EmailAddress, Is.EqualTo("kyle@example.com"));
+		Assert.That(updated.Role, Is.EqualTo(LeagueMemberRole.PointApprover));
+		Assert.That(_context.Members[offlineMember.Id].Status, Is.EqualTo(LeagueMemberStatus.Removed));
+		Assert.That(members.Select(member => member.Id), Does.Not.Contain(offlineMember.Id));
 	}
 
 	[Test]
