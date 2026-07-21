@@ -2,7 +2,7 @@ using TheLeague.Enums;
 
 namespace TheLeague.Models;
 
-public record AuthenticatedUser(Guid Id, string Name, string EmailAddress, string? AccessToken = null);
+public record AuthenticatedUser(Guid Id, string Name, string EmailAddress);
 
 public record LeagueSummary(
 	Guid Id,

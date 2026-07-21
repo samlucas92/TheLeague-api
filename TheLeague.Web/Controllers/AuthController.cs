@@ -1,26 +1,26 @@
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TheLeague.Interfaces;
+using TheLeague.Models;
 using TheLeague.Web.Extensions;
-using TheLeague.Web.Services;
+using TheLeague.Web.Security;
 using TheLeague.Web.WebModels;
 
 namespace TheLeague.Web.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-public class AuthController(IUserService userService, AuthTokenService authTokenService) : ControllerBase
+public class AuthController(IUserService userService, IJwtTokenService jwtTokenService) : ControllerBase
 {
+	[AllowAnonymous]
 	[HttpPost("register")]
 	public async Task<IActionResult> Register(RegisterRequest request, CancellationToken cancellationToken)
 	{
 		var account = await userService.RegisterAsync(request.Name, request.EmailAddress, request.Password, cancellationToken);
-		await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, authTokenService.CreateClaimsPrincipal(account.Id));
-		return Ok(authTokenService.ToAuthenticatedUser(account));
+		return Ok(jwtTokenService.CreateLoginResponse(account));
 	}
 
+	[AllowAnonymous]
 	[HttpPost("login")]
 	public async Task<IActionResult> Login(LoginRequest request, CancellationToken cancellationToken)
 	{
@@ -30,24 +30,19 @@ public class AuthController(IUserService userService, AuthTokenService authToken
 			return Unauthorized(new { error = "Email address or password is incorrect." });
 		}
 
-		await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, authTokenService.CreateClaimsPrincipal(account.Id));
-		return Ok(authTokenService.ToAuthenticatedUser(account));
+		return Ok(jwtTokenService.CreateLoginResponse(account));
 	}
 
 	[Authorize]
 	[HttpPost("signout")]
-	public async Task<IActionResult> Signout()
-	{
-		await HttpContext.SignOutAsync();
-		return NoContent();
-	}
+	public IActionResult Signout() => NoContent();
 
 	[Authorize]
 	[HttpGet("me")]
 	public async Task<IActionResult> Me(CancellationToken cancellationToken)
 	{
 		var account = await userService.GetByIdAsync(User.GetRequiredUserId(), cancellationToken);
-		return account is null ? Unauthorized() : Ok(authTokenService.ToAuthenticatedUser(account));
+		return account is null ? Unauthorized() : Ok(new AuthenticatedUser(account.Id, account.Name, account.EmailAddress));
 	}
 
 	[Authorize]

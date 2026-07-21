@@ -14,7 +14,7 @@ services:
         sync: false
       - key: Mongo__DatabaseName
         value: the-league
-      - key: Auth__TokenSigningKey
+      - key: JWT_SECRET
         sync: false
       - key: Cors__AllowedOrigins__0
         sync: false

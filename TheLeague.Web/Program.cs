@@ -1,12 +1,31 @@
+using System.Text;
 using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 using TheLeague.Interfaces;
 using TheLeague.Mongo.Context;
 using TheLeague.Mongo.Services;
-using TheLeague.Web.Middleware;
-using TheLeague.Web.Services;
+using TheLeague.Web.Security;
+using TheLeague.Web.WebModels;
 
 var builder = WebApplication.CreateBuilder(args);
+var port = Environment.GetEnvironmentVariable("PORT");
+
+if (!string.IsNullOrWhiteSpace(port))
+{
+	builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+}
+
+var jwtSettings = builder.Configuration
+	.GetSection("Jwt")
+	.Get<JwtSettings>() ?? new JwtSettings();
+
+jwtSettings.Secret = Environment.GetEnvironmentVariable("JWT_SECRET") ?? jwtSettings.Secret;
+
+if (string.IsNullOrWhiteSpace(jwtSettings.Secret))
+{
+	jwtSettings.Secret = "development-only-theleague-jwt-secret-change-this-before-production";
+}
 
 builder.Services.AddOpenApi();
 builder.Services
@@ -17,6 +36,13 @@ builder.Services
 	});
 
 builder.Services.Configure<MongoSettings>(builder.Configuration.GetSection("Mongo"));
+builder.Services.Configure<JwtSettings>(options =>
+{
+	options.Issuer = jwtSettings.Issuer;
+	options.Audience = jwtSettings.Audience;
+	options.Secret = jwtSettings.Secret;
+	options.ExpiryMinutes = jwtSettings.ExpiryMinutes;
+});
 builder.Services.AddSingleton<LeagueDataContext>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ILeagueAuthorisationService, LeagueAuthorisationService>();
@@ -27,21 +53,23 @@ builder.Services.AddScoped<IChallengeService, ChallengeService>();
 builder.Services.AddScoped<IPointSubmissionService, PointSubmissionService>();
 builder.Services.AddScoped<IPointAllocationService, PointAllocationService>();
 builder.Services.AddScoped<ILeaderboardService, LeaderboardService>();
-builder.Services.AddSingleton<AuthTokenService>();
+builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 
+var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Secret));
 builder.Services
-	.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-	.AddCookie(options =>
+	.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+	.AddJwtBearer(options =>
 	{
-		var forceCrossSiteCookies = builder.Configuration.GetValue("Auth:UseCrossSiteCookies", false);
-		options.Cookie.Name = "theleague.auth";
-		options.Cookie.HttpOnly = true;
-		options.Cookie.SameSite = forceCrossSiteCookies ? SameSiteMode.None : SameSiteMode.Lax;
-		options.Cookie.SecurePolicy = builder.Environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
-		options.Events.OnRedirectToLogin = context =>
+		options.TokenValidationParameters = new TokenValidationParameters
 		{
-			context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-			return Task.CompletedTask;
+			ValidateIssuer = true,
+			ValidateAudience = true,
+			ValidateLifetime = true,
+			ValidateIssuerSigningKey = true,
+			ValidIssuer = jwtSettings.Issuer,
+			ValidAudience = jwtSettings.Audience,
+			IssuerSigningKey = signingKey,
+			ClockSkew = TimeSpan.FromMinutes(2)
 		};
 	});
 
@@ -101,7 +129,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors("frontend");
 app.UseAuthentication();
-app.UseMiddleware<BearerTokenMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
 
