@@ -146,7 +146,7 @@ public class PointSubmissionService(LeagueDataContext context, ILeagueAuthorisat
 			Points = points.Value,
 			Reason = submission.PublicReviewReason,
 			Source = PointAllocationSource.ApprovedSubmission,
-			AwardedByUserId = userId,
+			AwardedByUserId = submission.SubmittedByUserId,
 			AwardedAt = DateTime.UtcNow
 		};
 

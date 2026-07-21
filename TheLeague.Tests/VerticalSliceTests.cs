@@ -54,8 +54,11 @@ public class VerticalSliceTests
 
 		Assert.That(joinedMember.Status, Is.EqualTo(LeagueMemberStatus.Active));
 		Assert.That(approval.Allocation.Points, Is.EqualTo(20));
+		Assert.That(approval.Allocation.AwardedByUserId, Is.EqualTo(participant.Id));
+		Assert.That(approval.Submission.ReviewedByUserId, Is.EqualTo(owner.Id));
 		Assert.That(leaderboard.Single(row => row.LeagueMemberId == joinedMember.Id).ApprovedPoints, Is.EqualTo(20));
 		Assert.That(feed.Single().Reason, Is.EqualTo("Won the pool tournament"));
+		Assert.That(feed.Single().AwardedByName, Is.EqualTo("Tom"));
 	}
 
 	[Test]
