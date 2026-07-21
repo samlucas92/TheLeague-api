@@ -17,9 +17,7 @@ public class AuthController(IUserService userService, IJwtTokenService jwtTokenS
 	public async Task<IActionResult> Register(RegisterRequest request, CancellationToken cancellationToken)
 	{
 		var account = await userService.RegisterAsync(request.Name, request.EmailAddress, request.Password, cancellationToken);
-		var response = jwtTokenService.CreateLoginResponse(account);
-		SetAuthCookie(response);
-		return Ok(response);
+		return Ok(jwtTokenService.CreateLoginResponse(account));
 	}
 
 	[AllowAnonymous]
@@ -32,18 +30,12 @@ public class AuthController(IUserService userService, IJwtTokenService jwtTokenS
 			return Unauthorized(new { error = "Email address or password is incorrect." });
 		}
 
-		var response = jwtTokenService.CreateLoginResponse(account);
-		SetAuthCookie(response);
-		return Ok(response);
+		return Ok(jwtTokenService.CreateLoginResponse(account));
 	}
 
 	[Authorize]
 	[HttpPost("signout")]
-	public IActionResult Signout()
-	{
-		Response.Cookies.Delete("theleague.accessToken", GetCookieOptions(DateTimeOffset.UtcNow.AddDays(-1)));
-		return NoContent();
-	}
+	public IActionResult Signout() => NoContent();
 
 	[Authorize]
 	[HttpGet("me")]
@@ -62,29 +54,4 @@ public class AuthController(IUserService userService, IJwtTokenService jwtTokenS
 
 	[HttpPost("reset-password")]
 	public IActionResult ResetPassword() => StatusCode(StatusCodes.Status501NotImplemented);
-
-	private void SetAuthCookie(LoginResponse response)
-	{
-		Response.Cookies.Append("theleague.accessToken", response.Token, GetCookieOptions(new DateTimeOffset(response.ExpiresAt, TimeSpan.Zero)));
-	}
-
-	private CookieOptions GetCookieOptions(DateTimeOffset expires) => new()
-	{
-		HttpOnly = true,
-		SameSite = SameSiteMode.None,
-		Secure = IsSecureCookieHost(),
-		Expires = expires,
-		Path = "/"
-	};
-
-	private bool IsSecureCookieHost()
-	{
-		if (Request.IsHttps)
-		{
-			return true;
-		}
-
-		return !Request.Host.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) &&
-			!Request.Host.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase);
-	}
 }

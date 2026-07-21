@@ -1,7 +1,6 @@
 using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
 using TheLeague.Interfaces;
 using TheLeague.Mongo.Context;
@@ -72,24 +71,6 @@ builder.Services
 			IssuerSigningKey = signingKey,
 			ClockSkew = TimeSpan.FromMinutes(2)
 		};
-		options.Events = new JwtBearerEvents
-		{
-			OnMessageReceived = context =>
-			{
-				if (string.IsNullOrWhiteSpace(context.Token))
-				{
-					context.Token = context.Request.Cookies["theleague.accessToken"];
-				}
-
-				if (string.IsNullOrWhiteSpace(context.Token) &&
-					context.Request.Headers.TryGetValue("X-Access-Token", out var fallbackToken))
-				{
-					context.Token = fallbackToken.FirstOrDefault();
-				}
-
-				return Task.CompletedTask;
-			}
-		};
 	});
 
 builder.Services.AddAuthorization();
@@ -123,14 +104,6 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
-
-var forwardedHeadersOptions = new ForwardedHeadersOptions
-{
-	ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-};
-forwardedHeadersOptions.KnownIPNetworks.Clear();
-forwardedHeadersOptions.KnownProxies.Clear();
-app.UseForwardedHeaders(forwardedHeadersOptions);
 
 app.UseExceptionHandler(exceptionApp =>
 {
