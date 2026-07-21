@@ -33,9 +33,10 @@ builder.Services
 	.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
 	.AddCookie(options =>
 	{
+		var forceCrossSiteCookies = builder.Configuration.GetValue("Auth:UseCrossSiteCookies", false);
 		options.Cookie.Name = "theleague.auth";
 		options.Cookie.HttpOnly = true;
-		options.Cookie.SameSite = builder.Environment.IsDevelopment() ? SameSiteMode.Lax : SameSiteMode.None;
+		options.Cookie.SameSite = forceCrossSiteCookies ? SameSiteMode.None : SameSiteMode.Lax;
 		options.Cookie.SecurePolicy = builder.Environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
 		options.Events.OnRedirectToLogin = context =>
 		{
