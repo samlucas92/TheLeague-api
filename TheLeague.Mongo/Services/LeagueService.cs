@@ -13,7 +13,8 @@ public class LeagueService(
 	ILeaderboardService leaderboardService,
 	IPointAllocationService allocationService,
 	IChallengeService challengeService,
-	ILeagueAuthorisationService authorisationService) : ILeagueService
+	ILeagueAuthorisationService authorisationService,
+	ILeagueAuditService auditService) : ILeagueService
 {
 	public async Task<League> CreateAsync(Guid ownerUserId, string name, string? description, LeaguePresetType presetType, LeagueJoinMode joinMode, CancellationToken cancellationToken = default)
 	{
@@ -46,6 +47,7 @@ public class LeagueService(
 		context.Leagues[league.Id] = league;
 		await memberService.CreateOwnerAsync(league.Id, ownerUserId, owner.Name, cancellationToken);
 		await presetService.ApplyPresetAsync(league.Id, presetType, cancellationToken);
+		await auditService.RecordAsync(league.Id, ownerUserId, LeagueAuditAction.LeagueCreated, "League", league.Id, $"Created league {league.Name}.", cancellationToken);
 
 		return league;
 	}
@@ -83,6 +85,7 @@ public class LeagueService(
 		league.PublicViewEnabled = publicViewEnabled;
 		league.UpdatedAt = DateTime.UtcNow;
 		await context.Leagues.SaveAsync(league, cancellationToken);
+		await auditService.RecordAsync(leagueId, userId, LeagueAuditAction.LeagueSettingsChanged, "League", league.Id, $"Updated league settings for {league.Name}.", cancellationToken);
 		return league;
 	}
 
@@ -93,6 +96,7 @@ public class LeagueService(
 		league.JoinCode = GenerateUniqueJoinCode();
 		league.UpdatedAt = DateTime.UtcNow;
 		await context.Leagues.SaveAsync(league, cancellationToken);
+		await auditService.RecordAsync(leagueId, userId, LeagueAuditAction.JoinCodeRegenerated, "League", league.Id, $"Regenerated join code for {league.Name}.", cancellationToken);
 		return league;
 	}
 

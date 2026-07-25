@@ -16,6 +16,7 @@ public class VerticalSliceTests
 	private IPointSubmissionService _submissions = null!;
 	private ILeaderboardService _leaderboard = null!;
 	private IPointAllocationService _allocations = null!;
+	private ILeagueAuditService _audit = null!;
 
 	[SetUp]
 	public void SetUp()
@@ -23,13 +24,14 @@ public class VerticalSliceTests
 		_context = new LeagueDataContext();
 		_users = new UserService(_context);
 		var authorisation = new LeagueAuthorisationService(_context);
-		_members = new LeagueMemberService(_context, authorisation);
+		_audit = new LeagueAuditService(_context, authorisation);
+		_members = new LeagueMemberService(_context, authorisation, _audit);
 		var presets = new LeaguePresetService();
-		_challenges = new ChallengeService(_context, authorisation);
-		_submissions = new PointSubmissionService(_context, authorisation);
+		_challenges = new ChallengeService(_context, authorisation, _audit);
+		_submissions = new PointSubmissionService(_context, authorisation, _audit);
 		_leaderboard = new LeaderboardService(_context, authorisation);
-		_allocations = new PointAllocationService(_context, authorisation);
-		_leagues = new LeagueService(_context, _members, presets, _leaderboard, _allocations, _challenges, authorisation);
+		_allocations = new PointAllocationService(_context, authorisation, _audit);
+		_leagues = new LeagueService(_context, _members, presets, _leaderboard, _allocations, _challenges, authorisation, _audit);
 	}
 
 	[Test]
@@ -410,5 +412,23 @@ public class VerticalSliceTests
 		Assert.That(linkedMember.Id, Is.EqualTo(registeredMember.Id));
 		Assert.That(leaderboard.Single(row => row.LeagueMemberId == registeredMember.Id).ApprovedPoints, Is.EqualTo(20));
 		Assert.That(_context.Members[offlineMember.Id].Status, Is.EqualTo(LeagueMemberStatus.Removed));
+	}
+
+	[Test]
+	public async Task AdminCanReadRecentAuditEntries()
+	{
+		var owner = await _users.RegisterAsync("Sam", "sam@example.com", "password123");
+		var participant = await _users.RegisterAsync("Tom", "tom@example.com", "password123");
+		var league = await _leagues.CreateAsync(owner.Id, "Weekend League", null, LeaguePresetType.Custom, LeagueJoinMode.OpenWithCode);
+		var member = await _members.JoinAsync(participant.Id, league.JoinCode, "Tom");
+		await _allocations.CreateManualAsync(league.Id, owner.Id, member.Id, 10, "Bonus");
+		await _members.ChangeRoleAsync(league.Id, owner.Id, member.Id, LeagueMemberRole.PointApprover);
+
+		var audit = await _audit.ListAsync(league.Id, owner.Id);
+
+		Assert.That(audit.Select(entry => entry.Action), Does.Contain(LeagueAuditAction.PointsAwarded));
+		Assert.That(audit.Select(entry => entry.Action), Does.Contain(LeagueAuditAction.RoleChanged));
+		Assert.That(audit.First().CreatedAt, Is.GreaterThanOrEqualTo(audit.Last().CreatedAt));
+		Assert.ThrowsAsync<UnauthorizedAccessException>(() => _audit.ListAsync(league.Id, participant.Id));
 	}
 }

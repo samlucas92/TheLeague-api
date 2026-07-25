@@ -5,7 +5,7 @@ using TheLeague.Mongo.Context;
 
 namespace TheLeague.Mongo.Services;
 
-public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationService authorisationService) : IChallengeService
+public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationService authorisationService, ILeagueAuditService auditService) : IChallengeService
 {
 	public async Task<IReadOnlyCollection<ChallengeListItem>> ListAsync(Guid leagueId, Guid userId, CancellationToken cancellationToken = default)
 	{
@@ -50,6 +50,7 @@ public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationSer
 		challenge.CreatedAt = DateTime.UtcNow;
 
 		context.Challenges[challenge.Id] = challenge;
+		await auditService.RecordAsync(leagueId, userId, LeagueAuditAction.ChallengeCreated, "Challenge", challenge.Id, $"Created challenge {challenge.Name}.", cancellationToken);
 		return challenge;
 	}
 
@@ -73,6 +74,7 @@ public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationSer
 		challenge.IsActive = updates.IsActive;
 		challenge.UpdatedAt = DateTime.UtcNow;
 		await context.Challenges.SaveAsync(challenge, cancellationToken);
+		await auditService.RecordAsync(leagueId, userId, updates.IsActive ? LeagueAuditAction.ChallengeEdited : LeagueAuditAction.ChallengeDisabled, "Challenge", challenge.Id, $"Updated challenge {challenge.Name}.", cancellationToken);
 		return challenge;
 	}
 
@@ -82,6 +84,7 @@ public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationSer
 		var challenge = GetChallenge(leagueId, challengeId);
 		EnsureCanMaintainChallenge(membership, challenge);
 		await context.Challenges.RemoveAsync(challengeId, cancellationToken);
+		await auditService.RecordAsync(leagueId, userId, LeagueAuditAction.ChallengeDeleted, "Challenge", challengeId, $"Deleted challenge {challenge.Name}.", cancellationToken);
 	}
 
 	public async Task<Challenge> AcceptAsync(Guid leagueId, Guid userId, Guid challengeId, CancellationToken cancellationToken = default)
@@ -97,6 +100,7 @@ public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationSer
 		challenge.RejectedMemberIds.Remove(member.Id);
 		challenge.UpdatedAt = DateTime.UtcNow;
 		await context.Challenges.SaveAsync(challenge, cancellationToken);
+		await auditService.RecordAsync(leagueId, userId, LeagueAuditAction.ChallengeAccepted, "Challenge", challenge.Id, $"{member.DisplayName} accepted challenge {challenge.Name}.", cancellationToken);
 		return challenge;
 	}
 
@@ -115,6 +119,7 @@ public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationSer
 		await context.Challenges.SaveAsync(challenge, cancellationToken);
 
 		var allocation = GetOrCreatePenaltyAllocation(leagueId, userId, member.Id, challenge, "Rejected challenge");
+		await auditService.RecordAsync(leagueId, userId, LeagueAuditAction.ChallengeRejected, "Challenge", challenge.Id, $"{member.DisplayName} rejected challenge {challenge.Name}.", cancellationToken);
 		return (challenge, allocation);
 	}
 
@@ -174,6 +179,7 @@ public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationSer
 		};
 
 		context.Allocations[allocation.Id] = allocation;
+		await auditService.RecordAsync(leagueId, userId, LeagueAuditAction.ChallengeCompleted, "Challenge", challenge.Id, $"Marked challenge {challenge.Name} completed.", cancellationToken);
 		return (challenge, allocation);
 	}
 
@@ -208,6 +214,7 @@ public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationSer
 		await context.Challenges.SaveAsync(challenge, cancellationToken);
 
 		var allocation = GetOrCreatePenaltyAllocation(leagueId, userId, memberId, challenge, "Failed challenge");
+		await auditService.RecordAsync(leagueId, userId, LeagueAuditAction.ChallengeFailed, "Challenge", challenge.Id, $"Marked challenge {challenge.Name} failed.", cancellationToken);
 		return (challenge, allocation);
 	}
 

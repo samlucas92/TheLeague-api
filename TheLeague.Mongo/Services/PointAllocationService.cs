@@ -5,7 +5,7 @@ using TheLeague.Mongo.Context;
 
 namespace TheLeague.Mongo.Services;
 
-public class PointAllocationService(LeagueDataContext context, ILeagueAuthorisationService authorisationService) : IPointAllocationService
+public class PointAllocationService(LeagueDataContext context, ILeagueAuthorisationService authorisationService, ILeagueAuditService auditService) : IPointAllocationService
 {
 	public async Task<ManualPointsResult> CreateManualAsync(Guid leagueId, Guid userId, Guid leagueMemberId, int points, string reason, CancellationToken cancellationToken = default)
 	{
@@ -28,6 +28,7 @@ public class PointAllocationService(LeagueDataContext context, ILeagueAuthorisat
 			};
 
 			context.Submissions[submission.Id] = submission;
+			await auditService.RecordAsync(leagueId, userId, LeagueAuditAction.PointsRequested, "Submission", submission.Id, $"{requester.DisplayName} requested {points:+#;-#} points.", cancellationToken);
 			return new ManualPointsResult("Pending", null, submission);
 		}
 
@@ -44,6 +45,14 @@ public class PointAllocationService(LeagueDataContext context, ILeagueAuthorisat
 		};
 
 		context.Allocations[allocation.Id] = allocation;
+		await auditService.RecordAsync(
+			leagueId,
+			userId,
+			points > 0 ? LeagueAuditAction.PointsAwarded : LeagueAuditAction.PointsDeducted,
+			"PointAllocation",
+			allocation.Id,
+			$"{requester.DisplayName} {(points > 0 ? "awarded" : "deducted")} {Math.Abs(points)} points.",
+			cancellationToken);
 		return new ManualPointsResult("Approved", allocation, null);
 	}
 
@@ -64,6 +73,7 @@ public class PointAllocationService(LeagueDataContext context, ILeagueAuthorisat
 			? points > 0 ? PointAllocationSource.AdminAward : PointAllocationSource.AdminPenalty
 			: PointAllocationSource.Adjustment;
 		await context.Allocations.SaveAsync(allocation, cancellationToken);
+		await auditService.RecordAsync(leagueId, userId, LeagueAuditAction.AllocationEdited, "PointAllocation", allocation.Id, $"Edited point entry to {points:+#;-#} points.", cancellationToken);
 		return allocation;
 	}
 
@@ -76,6 +86,7 @@ public class PointAllocationService(LeagueDataContext context, ILeagueAuthorisat
 		}
 
 		await context.Allocations.RemoveAsync(allocationId, cancellationToken);
+		await auditService.RecordAsync(leagueId, userId, LeagueAuditAction.AllocationDeleted, "PointAllocation", allocationId, $"Deleted point entry worth {allocation.Points:+#;-#} points.", cancellationToken);
 	}
 
 	public async Task<IReadOnlyCollection<PointsFeedItem>> ListFeedAsync(Guid leagueId, Guid userId, CancellationToken cancellationToken = default)

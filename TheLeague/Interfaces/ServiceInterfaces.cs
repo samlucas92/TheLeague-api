@@ -83,3 +83,9 @@ public interface ILeaderboardService
 	Task<IReadOnlyCollection<LeaderboardRow>> GetAsync(Guid leagueId, Guid userId, CancellationToken cancellationToken = default);
 	Task<IReadOnlyCollection<LeaderboardRow>> GetPublicAsync(Guid leagueId, CancellationToken cancellationToken = default);
 }
+
+public interface ILeagueAuditService
+{
+	Task RecordAsync(Guid leagueId, Guid performedByUserId, LeagueAuditAction action, string entityType, Guid? entityId, string summary, CancellationToken cancellationToken = default);
+	Task<IReadOnlyCollection<LeagueAuditItem>> ListAsync(Guid leagueId, Guid userId, int take = 50, CancellationToken cancellationToken = default);
+}

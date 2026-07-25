@@ -5,7 +5,7 @@ using TheLeague.Mongo.Context;
 
 namespace TheLeague.Mongo.Services;
 
-public class LeagueMemberService(LeagueDataContext context, ILeagueAuthorisationService authorisationService) : ILeagueMemberService
+public class LeagueMemberService(LeagueDataContext context, ILeagueAuthorisationService authorisationService, ILeagueAuditService auditService) : ILeagueMemberService
 {
 	public async Task<IReadOnlyCollection<LeagueMember>> ListAsync(Guid leagueId, Guid userId, CancellationToken cancellationToken = default)
 	{
@@ -17,7 +17,7 @@ public class LeagueMemberService(LeagueDataContext context, ILeagueAuthorisation
 			.ToArray();
 	}
 
-	public Task<LeagueMember> JoinAsync(Guid userId, string joinCode, string displayName, CancellationToken cancellationToken = default)
+	public async Task<LeagueMember> JoinAsync(Guid userId, string joinCode, string displayName, CancellationToken cancellationToken = default)
 	{
 		var normalizedCode = LeagueService.NormalizeJoinCode(joinCode);
 		var league = context.Leagues.Values
@@ -60,10 +60,11 @@ public class LeagueMemberService(LeagueDataContext context, ILeagueAuthorisation
 		};
 
 		context.Members[member.Id] = member;
-		return Task.FromResult(member);
+		await auditService.RecordAsync(league.Id, userId, LeagueAuditAction.MemberJoined, "LeagueMember", member.Id, $"{member.DisplayName} joined the league.", cancellationToken);
+		return member;
 	}
 
-	public Task<LeagueMember> CreateOwnerAsync(Guid leagueId, Guid ownerUserId, string displayName, CancellationToken cancellationToken = default)
+	public async Task<LeagueMember> CreateOwnerAsync(Guid leagueId, Guid ownerUserId, string displayName, CancellationToken cancellationToken = default)
 	{
 		var member = new LeagueMember
 		{
@@ -80,7 +81,8 @@ public class LeagueMemberService(LeagueDataContext context, ILeagueAuthorisation
 		};
 
 		context.Members[member.Id] = member;
-		return Task.FromResult(member);
+		await auditService.RecordAsync(leagueId, ownerUserId, LeagueAuditAction.MemberJoined, "LeagueMember", member.Id, $"{member.DisplayName} became league owner.", cancellationToken);
+		return member;
 	}
 
 	public async Task<LeagueMember> AddOfflineMemberAsync(Guid leagueId, Guid userId, string displayName, string? emailAddress, LeagueMemberRole role, CancellationToken cancellationToken = default)
@@ -101,6 +103,7 @@ public class LeagueMemberService(LeagueDataContext context, ILeagueAuthorisation
 		};
 
 		context.Members[member.Id] = member;
+		await auditService.RecordAsync(leagueId, userId, LeagueAuditAction.OfflineMemberAdded, "LeagueMember", member.Id, $"Added offline member {member.DisplayName}.", cancellationToken);
 		return member;
 	}
 
@@ -114,6 +117,7 @@ public class LeagueMemberService(LeagueDataContext context, ILeagueAuthorisation
 		member.EmailAddress = NormalizeOptionalEmail(emailAddress);
 		member.Role = role;
 		await context.Members.SaveAsync(member, cancellationToken);
+		await auditService.RecordAsync(leagueId, userId, LeagueAuditAction.MemberUpdated, "LeagueMember", member.Id, $"Updated member {member.DisplayName}.", cancellationToken);
 		return member;
 	}
 
@@ -125,6 +129,7 @@ public class LeagueMemberService(LeagueDataContext context, ILeagueAuthorisation
 
 		member.Role = role;
 		await context.Members.SaveAsync(member, cancellationToken);
+		await auditService.RecordAsync(leagueId, userId, LeagueAuditAction.RoleChanged, "LeagueMember", member.Id, $"Changed {member.DisplayName}'s role to {role}.", cancellationToken);
 		return member;
 	}
 
@@ -149,6 +154,7 @@ public class LeagueMemberService(LeagueDataContext context, ILeagueAuthorisation
 
 		member.Status = LeagueMemberStatus.Removed;
 		await context.Members.SaveAsync(member, cancellationToken);
+		await auditService.RecordAsync(leagueId, userId, LeagueAuditAction.MemberRemoved, "LeagueMember", member.Id, $"Removed member {member.DisplayName}.", cancellationToken);
 	}
 
 	public async Task<LeagueMember> LinkOfflineMemberAsync(Guid leagueId, Guid userId, Guid memberId, string emailAddress, CancellationToken cancellationToken = default)
@@ -183,6 +189,7 @@ public class LeagueMemberService(LeagueDataContext context, ILeagueAuthorisation
 			offlineMember.EmailAddress = normalizedEmail;
 			offlineMember.IsOfflineMember = false;
 			await context.Members.SaveAsync(offlineMember, cancellationToken);
+			await auditService.RecordAsync(leagueId, userId, LeagueAuditAction.OfflineMemberLinked, "LeagueMember", offlineMember.Id, $"Linked offline member {offlineMember.DisplayName} to {account.EmailAddress}.", cancellationToken);
 			return offlineMember;
 		}
 
@@ -211,6 +218,7 @@ public class LeagueMemberService(LeagueDataContext context, ILeagueAuthorisation
 		offlineMember.Status = LeagueMemberStatus.Removed;
 		offlineMember.EmailAddress = normalizedEmail;
 		await context.Members.SaveAsync(offlineMember, cancellationToken);
+		await auditService.RecordAsync(leagueId, userId, LeagueAuditAction.OfflineMemberLinked, "LeagueMember", existingMember.Id, $"Merged offline member {offlineMember.DisplayName} into {existingMember.DisplayName}.", cancellationToken);
 		return existingMember;
 	}
 

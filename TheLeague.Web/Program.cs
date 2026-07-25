@@ -53,6 +53,7 @@ builder.Services.AddScoped<IChallengeService, ChallengeService>();
 builder.Services.AddScoped<IPointSubmissionService, PointSubmissionService>();
 builder.Services.AddScoped<IPointAllocationService, PointAllocationService>();
 builder.Services.AddScoped<ILeaderboardService, LeaderboardService>();
+builder.Services.AddScoped<ILeagueAuditService, LeagueAuditService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 
 var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Secret));

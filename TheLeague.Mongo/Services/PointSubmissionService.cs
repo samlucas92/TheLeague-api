@@ -5,7 +5,7 @@ using TheLeague.Mongo.Context;
 
 namespace TheLeague.Mongo.Services;
 
-public class PointSubmissionService(LeagueDataContext context, ILeagueAuthorisationService authorisationService) : IPointSubmissionService
+public class PointSubmissionService(LeagueDataContext context, ILeagueAuthorisationService authorisationService, ILeagueAuditService auditService) : IPointSubmissionService
 {
 	public async Task<PointSubmission> CreateAsync(Guid leagueId, Guid userId, Guid challengeId, Guid? leagueMemberId, int? requestedPoints, string publicReason, CancellationToken cancellationToken = default)
 	{
@@ -76,6 +76,7 @@ public class PointSubmissionService(LeagueDataContext context, ILeagueAuthorisat
 		};
 
 		context.Submissions[submission.Id] = submission;
+		await auditService.RecordAsync(leagueId, userId, LeagueAuditAction.SubmissionCreated, "Submission", submission.Id, $"{requesterMembership.DisplayName} submitted a point request.", cancellationToken);
 		return submission;
 	}
 
@@ -151,6 +152,7 @@ public class PointSubmissionService(LeagueDataContext context, ILeagueAuthorisat
 		};
 
 		context.Allocations[allocation.Id] = allocation;
+		await auditService.RecordAsync(leagueId, userId, LeagueAuditAction.SubmissionApproved, "Submission", submission.Id, $"{reviewer.DisplayName} approved a submission for {points.Value:+#;-#} points.", cancellationToken);
 		return (submission, allocation);
 	}
 
@@ -175,6 +177,7 @@ public class PointSubmissionService(LeagueDataContext context, ILeagueAuthorisat
 		submission.AdminReviewNote = string.IsNullOrWhiteSpace(adminReviewNote) ? null : adminReviewNote.Trim();
 		submission.ReviewedAt = DateTime.UtcNow;
 		await context.Submissions.SaveAsync(submission, cancellationToken);
+		await auditService.RecordAsync(leagueId, userId, LeagueAuditAction.SubmissionRejected, "Submission", submission.Id, "Rejected a point submission.", cancellationToken);
 
 		return submission;
 	}

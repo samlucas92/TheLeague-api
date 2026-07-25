@@ -74,3 +74,13 @@ public record ChallengeOutcomeItem(
 	DateTime? AwardedAt,
 	string? AwardedByName,
 	int? Points);
+
+public record LeagueAuditItem(
+	Guid Id,
+	LeagueAuditAction Action,
+	Guid PerformedByUserId,
+	string PerformedByName,
+	string EntityType,
+	Guid? EntityId,
+	string Summary,
+	DateTime CreatedAt);
