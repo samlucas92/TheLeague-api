@@ -47,7 +47,11 @@ public class AuthController(IUserService userService, IJwtTokenService jwtTokenS
 
 	[Authorize]
 	[HttpPost("change-password")]
-	public IActionResult ChangePassword() => StatusCode(StatusCodes.Status501NotImplemented);
+	public async Task<IActionResult> ChangePassword(ChangePasswordRequest request, CancellationToken cancellationToken)
+	{
+		await userService.ChangePasswordAsync(User.GetRequiredUserId(), request.CurrentPassword, request.NewPassword, cancellationToken);
+		return NoContent();
+	}
 
 	[HttpPost("forgot-password")]
 	public IActionResult ForgotPassword() => Accepted();

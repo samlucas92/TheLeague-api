@@ -9,6 +9,7 @@ public interface IUserService
 	Task<UserAccount?> ValidateCredentialsAsync(string emailAddress, string password, CancellationToken cancellationToken = default);
 	Task<UserAccount?> GetByIdAsync(Guid userId, CancellationToken cancellationToken = default);
 	Task<UserAccount?> GetByEmailAsync(string emailAddress, CancellationToken cancellationToken = default);
+	Task ChangePasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken cancellationToken = default);
 }
 
 public interface ILeagueAuthorisationService

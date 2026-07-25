@@ -64,6 +64,32 @@ public class UserService(LeagueDataContext context) : IUserService
 			.FirstOrDefault());
 	}
 
+	public async Task ChangePasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken cancellationToken = default)
+	{
+		if (!context.Users.TryGetValue(userId, out var account))
+		{
+			throw new UnauthorizedAccessException("Please sign in again.");
+		}
+
+		if (!PasswordHasher.Verify(currentPassword, account.PasswordHash))
+		{
+			throw new InvalidOperationException("Current password is incorrect.");
+		}
+
+		if (string.IsNullOrWhiteSpace(newPassword) || newPassword.Length < 8)
+		{
+			throw new InvalidOperationException("New password must be at least 8 characters.");
+		}
+
+		if (PasswordHasher.Verify(newPassword, account.PasswordHash))
+		{
+			throw new InvalidOperationException("New password must be different from your current password.");
+		}
+
+		account.PasswordHash = PasswordHasher.Hash(newPassword);
+		await context.Users.SaveAsync(account, cancellationToken);
+	}
+
 	internal static string NormalizeEmail(string emailAddress)
 	{
 		if (string.IsNullOrWhiteSpace(emailAddress) || !emailAddress.Contains('@'))

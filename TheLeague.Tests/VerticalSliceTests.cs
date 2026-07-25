@@ -109,6 +109,19 @@ public class VerticalSliceTests
 	}
 
 	[Test]
+	public async Task UserCanChangePassword()
+	{
+		var account = await _users.RegisterAsync("Sam", "sam@example.com", "password123");
+
+		await _users.ChangePasswordAsync(account.Id, "password123", "new-password123");
+
+		Assert.That(await _users.ValidateCredentialsAsync("sam@example.com", "password123"), Is.Null);
+		Assert.That((await _users.ValidateCredentialsAsync("sam@example.com", "new-password123"))?.Id, Is.EqualTo(account.Id));
+		Assert.ThrowsAsync<InvalidOperationException>(() => _users.ChangePasswordAsync(account.Id, "wrong-password", "another-password123"));
+		Assert.ThrowsAsync<InvalidOperationException>(() => _users.ChangePasswordAsync(account.Id, "new-password123", "short"));
+	}
+
+	[Test]
 	public async Task ParticipantCannotApproveSubmission()
 	{
 		var owner = await _users.RegisterAsync("Sam", "sam@example.com", "password123");
