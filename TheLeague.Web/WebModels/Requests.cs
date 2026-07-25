@@ -28,6 +28,7 @@ public record UpdateChallengeRequest(
 	int PointsForSuccess,
 	int PointsForFailure,
 	bool IsActive);
+public record ChallengeOutcomeRequest(Guid? TargetMemberId);
 public record CreateSubmissionRequest(Guid ChallengeId, Guid? LeagueMemberId, int? RequestedPoints, string PublicReason);
 public record ApproveSubmissionRequest(int? ApprovedPoints, string PublicReviewReason, string? AdminReviewNote);
 public record RejectSubmissionRequest(string PublicReviewReason, string? AdminReviewNote);

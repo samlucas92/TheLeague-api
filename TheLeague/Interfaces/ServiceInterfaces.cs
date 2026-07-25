@@ -54,8 +54,8 @@ public interface IChallengeService
 	Task DeleteAsync(Guid leagueId, Guid userId, Guid challengeId, CancellationToken cancellationToken = default);
 	Task<Challenge> AcceptAsync(Guid leagueId, Guid userId, Guid challengeId, CancellationToken cancellationToken = default);
 	Task<(Challenge Challenge, PointAllocation Penalty)> RejectAsync(Guid leagueId, Guid userId, Guid challengeId, CancellationToken cancellationToken = default);
-	Task<(Challenge Challenge, PointAllocation Allocation)> CompleteAsync(Guid leagueId, Guid userId, Guid challengeId, CancellationToken cancellationToken = default);
-	Task<(Challenge Challenge, PointAllocation Allocation)> FailAsync(Guid leagueId, Guid userId, Guid challengeId, CancellationToken cancellationToken = default);
+	Task<(Challenge Challenge, PointAllocation Allocation)> CompleteAsync(Guid leagueId, Guid userId, Guid challengeId, Guid? targetMemberId = null, CancellationToken cancellationToken = default);
+	Task<(Challenge Challenge, PointAllocation Allocation)> FailAsync(Guid leagueId, Guid userId, Guid challengeId, Guid? targetMemberId = null, CancellationToken cancellationToken = default);
 }
 
 public interface IPointSubmissionService

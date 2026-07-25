@@ -72,10 +72,10 @@ public class ChallengesController(IChallengeService challengeService) : Controll
 		Ok(await challengeService.RejectAsync(leagueId, User.GetRequiredUserId(), challengeId, cancellationToken));
 
 	[HttpPost("{challengeId:guid}/complete")]
-	public async Task<IActionResult> Complete(Guid leagueId, Guid challengeId, CancellationToken cancellationToken) =>
-		Ok(await challengeService.CompleteAsync(leagueId, User.GetRequiredUserId(), challengeId, cancellationToken));
+	public async Task<IActionResult> Complete(Guid leagueId, Guid challengeId, ChallengeOutcomeRequest? request, CancellationToken cancellationToken) =>
+		Ok(await challengeService.CompleteAsync(leagueId, User.GetRequiredUserId(), challengeId, request?.TargetMemberId, cancellationToken));
 
 	[HttpPost("{challengeId:guid}/fail")]
-	public async Task<IActionResult> Fail(Guid leagueId, Guid challengeId, CancellationToken cancellationToken) =>
-		Ok(await challengeService.FailAsync(leagueId, User.GetRequiredUserId(), challengeId, cancellationToken));
+	public async Task<IActionResult> Fail(Guid leagueId, Guid challengeId, ChallengeOutcomeRequest? request, CancellationToken cancellationToken) =>
+		Ok(await challengeService.FailAsync(leagueId, User.GetRequiredUserId(), challengeId, request?.TargetMemberId, cancellationToken));
 }

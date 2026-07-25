@@ -202,7 +202,7 @@ public class VerticalSliceTests
 	}
 
 	[Test]
-	public async Task ChallengeCanBeCompletedOrFailedByTargets()
+	public async Task ChallengeCreatorCanCompleteOrFailAcceptedChallengesForTargets()
 	{
 		var owner = await _users.RegisterAsync("Sam", "sam@example.com", "password123");
 		var participant = await _users.RegisterAsync("Tom", "tom@example.com", "password123");
@@ -223,10 +223,13 @@ public class VerticalSliceTests
 			PointsForFailure = -15
 		});
 
-		var completion = await _challenges.CompleteAsync(league.Id, participant.Id, completedChallenge.Id);
-		var failure = await _challenges.FailAsync(league.Id, participant.Id, failedChallenge.Id);
+		await _challenges.AcceptAsync(league.Id, participant.Id, completedChallenge.Id);
+		await _challenges.AcceptAsync(league.Id, participant.Id, failedChallenge.Id);
+		var completion = await _challenges.CompleteAsync(league.Id, owner.Id, completedChallenge.Id, member.Id);
+		var failure = await _challenges.FailAsync(league.Id, owner.Id, failedChallenge.Id, member.Id);
 		var leaderboard = await _leaderboard.GetAsync(league.Id, owner.Id);
 		var feed = await _allocations.ListFeedAsync(league.Id, owner.Id);
+		var challengeList = await _challenges.ListAsync(league.Id, owner.Id);
 
 		Assert.That(completion.Allocation.Points, Is.EqualTo(25));
 		Assert.That(completion.Challenge.CompletedMemberIds, Does.Contain(member.Id));
@@ -235,6 +238,27 @@ public class VerticalSliceTests
 		Assert.That(leaderboard.Single(row => row.LeagueMemberId == member.Id).ApprovedPoints, Is.EqualTo(10));
 		Assert.That(feed.Select(item => item.Reason), Does.Contain("Completed challenge: Sing karaoke"));
 		Assert.That(feed.Select(item => item.Reason), Does.Contain("Failed challenge: Do a backflip"));
+		Assert.That(challengeList.Single(challenge => challenge.Id == completedChallenge.Id).Outcomes.Single().Status, Is.EqualTo("Completed"));
+		Assert.That(challengeList.Single(challenge => challenge.Id == failedChallenge.Id).Outcomes.Single().Status, Is.EqualTo("Failed"));
+	}
+
+	[Test]
+	public async Task TargetCannotConfirmTheirOwnChallengeOutcome()
+	{
+		var owner = await _users.RegisterAsync("Sam", "sam@example.com", "password123");
+		var participant = await _users.RegisterAsync("Tom", "tom@example.com", "password123");
+		var league = await _leagues.CreateAsync(owner.Id, "Weekend League", null, LeaguePresetType.Custom, LeagueJoinMode.OpenWithCode);
+		var member = await _members.JoinAsync(participant.Id, league.JoinCode, "Tom");
+		var challenge = await _challenges.CreateAsync(league.Id, owner.Id, new()
+		{
+			Name = "Sing karaoke",
+			TargetMemberIds = [member.Id],
+			PointsForSuccess = 25,
+			PointsForFailure = -10
+		});
+		await _challenges.AcceptAsync(league.Id, participant.Id, challenge.Id);
+
+		Assert.ThrowsAsync<UnauthorizedAccessException>(() => _challenges.CompleteAsync(league.Id, participant.Id, challenge.Id, member.Id));
 	}
 
 	[Test]

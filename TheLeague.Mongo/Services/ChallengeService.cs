@@ -118,29 +118,40 @@ public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationSer
 		return (challenge, allocation);
 	}
 
-	public async Task<(Challenge Challenge, PointAllocation Allocation)> CompleteAsync(Guid leagueId, Guid userId, Guid challengeId, CancellationToken cancellationToken = default)
+	public async Task<(Challenge Challenge, PointAllocation Allocation)> CompleteAsync(Guid leagueId, Guid userId, Guid challengeId, Guid? targetMemberId = null, CancellationToken cancellationToken = default)
 	{
-		var member = await authorisationService.GetRequiredMembershipAsync(leagueId, userId, cancellationToken);
-		var challenge = GetTargetedChallenge(leagueId, challengeId, member.Id);
+		var actor = await authorisationService.GetRequiredMembershipAsync(leagueId, userId, cancellationToken);
+		var challenge = GetChallenge(leagueId, challengeId);
+		var memberId = ResolveOutcomeTarget(actor, challenge, targetMemberId);
+		EnsureCanConfirmOutcome(actor, challenge, memberId);
 
-		if (challenge.RejectedMemberIds.Contains(member.Id))
+		if (challenge.RejectedMemberIds.Contains(memberId))
 		{
 			throw new InvalidOperationException("Rejected challenges cannot be completed.");
 		}
 
-		if (!challenge.CompletedMemberIds.Contains(member.Id))
+		if (challenge.FailedMemberIds.Contains(memberId))
 		{
-			challenge.CompletedMemberIds.Add(member.Id);
+			throw new InvalidOperationException("Failed challenges cannot be marked as completed.");
 		}
 
-		challenge.FailedMemberIds.Remove(member.Id);
+		if (!challenge.AcceptedMemberIds.Contains(memberId))
+		{
+			throw new InvalidOperationException("Only accepted challenges can be completed.");
+		}
+
+		if (!challenge.CompletedMemberIds.Contains(memberId))
+		{
+			challenge.CompletedMemberIds.Add(memberId);
+		}
+
 		challenge.UpdatedAt = DateTime.UtcNow;
 		await context.Challenges.SaveAsync(challenge, cancellationToken);
 
 		var existingAllocation = context.Allocations.Values
 			.Where(allocation =>
 				allocation.ChallengeId == challenge.Id &&
-				allocation.LeagueMemberId == member.Id &&
+				allocation.LeagueMemberId == memberId &&
 				allocation.Source == PointAllocationSource.AdminAward)
 			.OrderByDescending(allocation => allocation.AwardedAt)
 			.FirstOrDefault();
@@ -153,7 +164,7 @@ public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationSer
 		{
 			Id = Guid.NewGuid(),
 			LeagueId = leagueId,
-			LeagueMemberId = member.Id,
+			LeagueMemberId = memberId,
 			ChallengeId = challenge.Id,
 			Points = challenge.PointsForSuccess,
 			Reason = $"Completed challenge: {challenge.Name}",
@@ -166,25 +177,37 @@ public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationSer
 		return (challenge, allocation);
 	}
 
-	public async Task<(Challenge Challenge, PointAllocation Allocation)> FailAsync(Guid leagueId, Guid userId, Guid challengeId, CancellationToken cancellationToken = default)
+	public async Task<(Challenge Challenge, PointAllocation Allocation)> FailAsync(Guid leagueId, Guid userId, Guid challengeId, Guid? targetMemberId = null, CancellationToken cancellationToken = default)
 	{
-		var member = await authorisationService.GetRequiredMembershipAsync(leagueId, userId, cancellationToken);
-		var challenge = GetTargetedChallenge(leagueId, challengeId, member.Id);
+		var actor = await authorisationService.GetRequiredMembershipAsync(leagueId, userId, cancellationToken);
+		var challenge = GetChallenge(leagueId, challengeId);
+		var memberId = ResolveOutcomeTarget(actor, challenge, targetMemberId);
+		EnsureCanConfirmOutcome(actor, challenge, memberId);
 
-		if (challenge.CompletedMemberIds.Contains(member.Id))
+		if (challenge.CompletedMemberIds.Contains(memberId))
 		{
 			throw new InvalidOperationException("Completed challenges cannot be marked as failed.");
 		}
 
-		if (!challenge.FailedMemberIds.Contains(member.Id))
+		if (challenge.RejectedMemberIds.Contains(memberId))
 		{
-			challenge.FailedMemberIds.Add(member.Id);
+			throw new InvalidOperationException("Rejected challenges cannot be marked as failed.");
+		}
+
+		if (!challenge.AcceptedMemberIds.Contains(memberId))
+		{
+			throw new InvalidOperationException("Only accepted challenges can be failed.");
+		}
+
+		if (!challenge.FailedMemberIds.Contains(memberId))
+		{
+			challenge.FailedMemberIds.Add(memberId);
 		}
 
 		challenge.UpdatedAt = DateTime.UtcNow;
 		await context.Challenges.SaveAsync(challenge, cancellationToken);
 
-		var allocation = GetOrCreatePenaltyAllocation(leagueId, userId, member.Id, challenge, "Failed challenge");
+		var allocation = GetOrCreatePenaltyAllocation(leagueId, userId, memberId, challenge, "Failed challenge");
 		return (challenge, allocation);
 	}
 
@@ -249,6 +272,32 @@ public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationSer
 		throw new UnauthorizedAccessException("Only the challenge creator or a league admin can change this challenge.");
 	}
 
+	private static Guid ResolveOutcomeTarget(LeagueMember actor, Challenge challenge, Guid? targetMemberId)
+	{
+		var memberId = targetMemberId ?? actor.Id;
+		if (!challenge.TargetMemberIds.Contains(memberId))
+		{
+			throw new UnauthorizedAccessException("This challenge is not aimed at that member.");
+		}
+
+		return memberId;
+	}
+
+	private static void EnsureCanConfirmOutcome(LeagueMember actor, Challenge challenge, Guid targetMemberId)
+	{
+		if (challenge.CreatedByUserId == actor.UserId || actor.Role is LeagueMemberRole.Admin or LeagueMemberRole.Owner)
+		{
+			return;
+		}
+
+		if (actor.Id == targetMemberId)
+		{
+			throw new UnauthorizedAccessException("The challenge creator or a league admin must confirm completion or failure.");
+		}
+
+		throw new UnauthorizedAccessException("Only the challenge creator or a league admin can confirm this outcome.");
+	}
+
 	private ChallengeListItem ToListItem(Challenge challenge)
 	{
 		var targetNames = challenge.TargetMemberIds
@@ -269,7 +318,58 @@ public class ChallengeService(LeagueDataContext context, ILeagueAuthorisationSer
 			challenge.PointsForSuccess,
 			challenge.PointsForFailure,
 			challenge.IsActive,
-			challenge.CreatedAt);
+			challenge.CreatedAt,
+			GetOutcomeItems(challenge));
+	}
+
+	private IReadOnlyCollection<ChallengeOutcomeItem> GetOutcomeItems(Challenge challenge)
+	{
+		return challenge.TargetMemberIds
+			.Select(memberId =>
+			{
+				var memberName = context.Members.TryGetValue(memberId, out var member) ? member.DisplayName : "Unknown member";
+				var allocation = context.Allocations.Values
+					.Where(candidate => candidate.ChallengeId == challenge.Id && candidate.LeagueMemberId == memberId)
+					.OrderByDescending(candidate => candidate.AwardedAt)
+					.FirstOrDefault();
+				var awardedBy = allocation is not null && context.Users.TryGetValue(allocation.AwardedByUserId, out var user)
+					? user.Name
+					: null;
+
+				return new ChallengeOutcomeItem(
+					memberId,
+					memberName,
+					GetMemberStatus(challenge, memberId),
+					allocation?.AwardedAt,
+					awardedBy,
+					allocation?.Points);
+			})
+			.ToArray();
+	}
+
+	private static string GetMemberStatus(Challenge challenge, Guid memberId)
+	{
+		if (challenge.CompletedMemberIds.Contains(memberId))
+		{
+			return "Completed";
+		}
+
+		if (challenge.FailedMemberIds.Contains(memberId))
+		{
+			return "Failed";
+		}
+
+		if (challenge.RejectedMemberIds.Contains(memberId))
+		{
+			return "Rejected";
+		}
+
+		if (challenge.AcceptedMemberIds.Contains(memberId))
+		{
+			return "Accepted";
+		}
+
+		return "Open";
 	}
 
 	private PointAllocation GetOrCreatePenaltyAllocation(Guid leagueId, Guid userId, Guid memberId, Challenge challenge, string reasonPrefix)

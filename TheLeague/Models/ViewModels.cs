@@ -64,4 +64,13 @@ public record ChallengeListItem(
 	int PointsForSuccess,
 	int PointsForFailure,
 	bool IsActive,
-	DateTime CreatedAt);
+	DateTime CreatedAt,
+	IReadOnlyCollection<ChallengeOutcomeItem> Outcomes);
+
+public record ChallengeOutcomeItem(
+	Guid LeagueMemberId,
+	string DisplayName,
+	string Status,
+	DateTime? AwardedAt,
+	string? AwardedByName,
+	int? Points);
