@@ -130,6 +130,7 @@ if (app.Environment.IsDevelopment())
 app.UseCors("frontend");
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapGet("/api/health", () => Results.Ok(new { status = "ok", name = "The League" })).AllowAnonymous();
 app.MapControllers();
 
 app.Run();
