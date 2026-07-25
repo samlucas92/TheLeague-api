@@ -29,7 +29,7 @@ public class VerticalSliceTests
 		_submissions = new PointSubmissionService(_context, authorisation);
 		_leaderboard = new LeaderboardService(_context, authorisation);
 		_allocations = new PointAllocationService(_context, authorisation);
-		_leagues = new LeagueService(_context, _members, presets, _leaderboard, _allocations, _challenges);
+		_leagues = new LeagueService(_context, _members, presets, _leaderboard, _allocations, _challenges, authorisation);
 	}
 
 	[Test]
@@ -275,6 +275,24 @@ public class VerticalSliceTests
 		Assert.That(view.Members.Select(member => member.DisplayName), Does.Contain("Kyle"));
 		Assert.That(view.Leaderboard.Single(row => row.LeagueMemberId == offline.Id).ApprovedPoints, Is.EqualTo(12));
 		Assert.That(view.PointsFeed.Single().Reason, Is.EqualTo("Bonus"));
+	}
+
+	[Test]
+	public async Task AdminCanUpdateLeagueSettingsAndRegenerateJoinCode()
+	{
+		var owner = await _users.RegisterAsync("Sam", "sam@example.com", "password123");
+		var league = await _leagues.CreateAsync(owner.Id, "Weekend League", null, LeaguePresetType.Custom, LeagueJoinMode.OpenWithCode);
+		var originalCode = league.JoinCode;
+
+		var updated = await _leagues.UpdateSettingsAsync(league.Id, owner.Id, "New Name", "Fresh description", LeagueJoinMode.Closed, false);
+		var regenerated = await _leagues.RegenerateJoinCodeAsync(league.Id, owner.Id);
+
+		Assert.That(updated.Name, Is.EqualTo("New Name"));
+		Assert.That(updated.Description, Is.EqualTo("Fresh description"));
+		Assert.That(updated.JoinMode, Is.EqualTo(LeagueJoinMode.Closed));
+		Assert.That(updated.PublicViewEnabled, Is.False);
+		Assert.That(regenerated.JoinCode, Is.Not.EqualTo(originalCode));
+		Assert.ThrowsAsync<InvalidOperationException>(() => _leagues.GetPublicViewAsync(regenerated.JoinCode));
 	}
 
 	[Test]

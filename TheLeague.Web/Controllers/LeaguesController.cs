@@ -33,6 +33,14 @@ public class LeaguesController(
 		return league is null ? NotFound() : Ok(league);
 	}
 
+	[HttpPut("{leagueId:guid}")]
+	public async Task<IActionResult> Update(Guid leagueId, UpdateLeagueSettingsRequest request, CancellationToken cancellationToken) =>
+		Ok(await leagueService.UpdateSettingsAsync(leagueId, User.GetRequiredUserId(), request.Name, request.Description, request.JoinMode, request.PublicViewEnabled, cancellationToken));
+
+	[HttpPost("{leagueId:guid}/join-code/regenerate")]
+	public async Task<IActionResult> RegenerateJoinCode(Guid leagueId, CancellationToken cancellationToken) =>
+		Ok(await leagueService.RegenerateJoinCodeAsync(leagueId, User.GetRequiredUserId(), cancellationToken));
+
 	[HttpPost("join-preview")]
 	public async Task<IActionResult> PreviewJoin(JoinPreviewRequest request, CancellationToken cancellationToken) =>
 		Ok(await leagueService.PreviewJoinAsync(request.JoinCode, cancellationToken));

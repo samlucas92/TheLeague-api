@@ -12,7 +12,8 @@ public class LeagueService(
 	ILeaguePresetService presetService,
 	ILeaderboardService leaderboardService,
 	IPointAllocationService allocationService,
-	IChallengeService challengeService) : ILeagueService
+	IChallengeService challengeService,
+	ILeagueAuthorisationService authorisationService) : ILeagueService
 {
 	public async Task<League> CreateAsync(Guid ownerUserId, string name, string? description, LeaguePresetType presetType, LeagueJoinMode joinMode, CancellationToken cancellationToken = default)
 	{
@@ -31,6 +32,7 @@ public class LeagueService(
 			Status = LeagueStatus.Active,
 			JoinMode = joinMode,
 			PresetType = presetType,
+			PublicViewEnabled = true,
 			AllowMembersToLeave = true,
 			ShowPendingPointsOnLeaderboard = true,
 			CreatedAt = DateTime.UtcNow
@@ -66,6 +68,34 @@ public class LeagueService(
 		return Task.FromResult(league);
 	}
 
+	public async Task<League> UpdateSettingsAsync(Guid leagueId, Guid userId, string name, string? description, LeagueJoinMode joinMode, bool publicViewEnabled, CancellationToken cancellationToken = default)
+	{
+		await authorisationService.GetRequiredAdminMembershipAsync(leagueId, userId, cancellationToken);
+		var league = GetLeague(leagueId);
+		if (string.IsNullOrWhiteSpace(name))
+		{
+			throw new InvalidOperationException("League name is required.");
+		}
+
+		league.Name = name.Trim();
+		league.Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+		league.JoinMode = joinMode;
+		league.PublicViewEnabled = publicViewEnabled;
+		league.UpdatedAt = DateTime.UtcNow;
+		await context.Leagues.SaveAsync(league, cancellationToken);
+		return league;
+	}
+
+	public async Task<League> RegenerateJoinCodeAsync(Guid leagueId, Guid userId, CancellationToken cancellationToken = default)
+	{
+		await authorisationService.GetRequiredAdminMembershipAsync(leagueId, userId, cancellationToken);
+		var league = GetLeague(leagueId);
+		league.JoinCode = GenerateUniqueJoinCode();
+		league.UpdatedAt = DateTime.UtcNow;
+		await context.Leagues.SaveAsync(league, cancellationToken);
+		return league;
+	}
+
 	public Task<JoinPreview> PreviewJoinAsync(string joinCode, CancellationToken cancellationToken = default)
 	{
 		var normalized = NormalizeJoinCode(joinCode);
@@ -99,6 +129,11 @@ public class LeagueService(
 			throw new InvalidOperationException("Join code was not found.");
 		}
 
+		if (!league.PublicViewEnabled)
+		{
+			throw new InvalidOperationException("Public view is disabled for this league.");
+		}
+
 		var members = context.Members.Values
 			.Where(member => member.LeagueId == league.Id && member.Status == LeagueMemberStatus.Active)
 			.OrderBy(member => member.DisplayName)
@@ -108,6 +143,16 @@ public class LeagueService(
 		var challenges = await challengeService.ListPublicAsync(league.Id, cancellationToken);
 
 		return new PublicLeagueView(league, members, leaderboard, feed, challenges);
+	}
+
+	private League GetLeague(Guid leagueId)
+	{
+		if (!context.Leagues.TryGetValue(leagueId, out var league))
+		{
+			throw new InvalidOperationException("League was not found.");
+		}
+
+		return league;
 	}
 
 	internal static string NormalizeJoinCode(string joinCode)

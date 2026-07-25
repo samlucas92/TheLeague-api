@@ -12,6 +12,7 @@ public class League
 	public LeagueStatus Status { get; set; }
 	public LeagueJoinMode JoinMode { get; set; }
 	public LeaguePresetType PresetType { get; set; }
+	public bool PublicViewEnabled { get; set; } = true;
 	public DateTime? StartsAt { get; set; }
 	public DateTime? EndsAt { get; set; }
 	public int? MaximumParticipants { get; set; }

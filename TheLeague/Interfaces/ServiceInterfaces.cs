@@ -24,6 +24,8 @@ public interface ILeagueService
 	Task<League> CreateAsync(Guid ownerUserId, string name, string? description, LeaguePresetType presetType, LeagueJoinMode joinMode, CancellationToken cancellationToken = default);
 	Task<IReadOnlyCollection<LeagueSummary>> ListForUserAsync(Guid userId, CancellationToken cancellationToken = default);
 	Task<League?> GetAsync(Guid leagueId, CancellationToken cancellationToken = default);
+	Task<League> UpdateSettingsAsync(Guid leagueId, Guid userId, string name, string? description, LeagueJoinMode joinMode, bool publicViewEnabled, CancellationToken cancellationToken = default);
+	Task<League> RegenerateJoinCodeAsync(Guid leagueId, Guid userId, CancellationToken cancellationToken = default);
 	Task<JoinPreview> PreviewJoinAsync(string joinCode, CancellationToken cancellationToken = default);
 	Task<PublicLeagueView> GetPublicViewAsync(string joinCode, CancellationToken cancellationToken = default);
 }
