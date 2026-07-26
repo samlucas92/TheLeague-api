@@ -31,8 +31,10 @@ public record SiteUserAdminItem(
 	string EmailAddress,
 	bool IsEmailVerified,
 	bool IsSiteAdmin,
+	bool IsDeleted,
 	DateTime CreatedAt,
-	DateTime? EmailVerifiedAt);
+	DateTime? EmailVerifiedAt,
+	DateTime? DeletedAt);
 
 public record LeagueSummary(
 	Guid Id,

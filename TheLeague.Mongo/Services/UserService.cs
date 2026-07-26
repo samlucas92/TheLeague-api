@@ -48,6 +48,7 @@ public class UserService(LeagueDataContext context) : IUserService
 		var normalizedEmail = NormalizeEmail(emailAddress);
 		var account = context.Users.Values
 			.Where(user => EmailMatches(user.EmailAddress, normalizedEmail))
+			.Where(user => !user.IsDeleted)
 			.OrderByDescending(user => user.CreatedAt)
 			.FirstOrDefault(user => PasswordHasher.Verify(password, user.PasswordHash));
 
@@ -65,6 +66,7 @@ public class UserService(LeagueDataContext context) : IUserService
 		var normalizedEmail = NormalizeEmail(emailAddress);
 		var account = context.Users.Values
 			.Where(user => EmailMatches(user.EmailAddress, normalizedEmail))
+			.Where(user => !user.IsDeleted)
 			.OrderByDescending(user => user.CreatedAt)
 			.FirstOrDefault();
 		return account is null ? null : await EnsureSiteAdminStatusAsync(account, cancellationToken);
@@ -75,6 +77,11 @@ public class UserService(LeagueDataContext context) : IUserService
 		if (!context.Users.TryGetValue(userId, out var account))
 		{
 			throw new UnauthorizedAccessException("Please sign in again.");
+		}
+
+		if (account.IsDeleted)
+		{
+			throw new UnauthorizedAccessException("This account has been deactivated.");
 		}
 
 		if (!PasswordHasher.Verify(currentPassword, account.PasswordHash))
@@ -101,6 +108,7 @@ public class UserService(LeagueDataContext context) : IUserService
 		var normalizedEmail = NormalizeEmail(emailAddress);
 		var account = context.Users.Values
 			.Where(user => EmailMatches(user.EmailAddress, normalizedEmail))
+			.Where(user => !user.IsDeleted)
 			.OrderByDescending(user => user.CreatedAt)
 			.FirstOrDefault();
 
@@ -160,6 +168,11 @@ public class UserService(LeagueDataContext context) : IUserService
 			throw new InvalidOperationException("Reset link is invalid or has expired.");
 		}
 
+		if (account.IsDeleted)
+		{
+			throw new InvalidOperationException("This account has been deactivated.");
+		}
+
 		account.PasswordHash = PasswordHasher.Hash(newPassword);
 		resetToken.UsedAt = DateTime.UtcNow;
 		await context.Users.SaveAsync(account, cancellationToken);
@@ -171,6 +184,11 @@ public class UserService(LeagueDataContext context) : IUserService
 		if (!context.Users.TryGetValue(userId, out var account))
 		{
 			throw new UnauthorizedAccessException("Please sign in again.");
+		}
+
+		if (account.IsDeleted)
+		{
+			throw new UnauthorizedAccessException("This account has been deactivated.");
 		}
 
 		if (account.IsEmailVerified)
@@ -221,6 +239,11 @@ public class UserService(LeagueDataContext context) : IUserService
 			throw new InvalidOperationException("Verification link is invalid or has expired.");
 		}
 
+		if (account.IsDeleted)
+		{
+			throw new InvalidOperationException("This account has been deactivated.");
+		}
+
 		account.IsEmailVerified = true;
 		account.EmailVerifiedAt = DateTime.UtcNow;
 		verificationToken.UsedAt = DateTime.UtcNow;
@@ -249,8 +272,10 @@ public class UserService(LeagueDataContext context) : IUserService
 				user.EmailAddress,
 				user.IsEmailVerified,
 				user.IsSiteAdmin,
+				user.IsDeleted,
 				user.CreatedAt,
-				user.EmailVerifiedAt))
+				user.EmailVerifiedAt,
+				user.DeletedAt))
 			.ToArray();
 
 		return Task.FromResult<IReadOnlyCollection<SiteUserAdminItem>>(users);
@@ -281,6 +306,34 @@ public class UserService(LeagueDataContext context) : IUserService
 		targetUser.IsSiteAdmin = isSiteAdmin;
 		await context.Users.SaveAsync(targetUser, cancellationToken);
 		return targetUser;
+	}
+
+	public async Task DeactivateAsync(Guid userId, string currentPassword, CancellationToken cancellationToken = default)
+	{
+		if (!context.Users.TryGetValue(userId, out var account))
+		{
+			throw new UnauthorizedAccessException("Please sign in again.");
+		}
+
+		if (account.IsDeleted)
+		{
+			return;
+		}
+
+		if (IsInitialSiteAdmin(account.EmailAddress))
+		{
+			throw new InvalidOperationException("The initial site admin account cannot be deactivated.");
+		}
+
+		if (!PasswordHasher.Verify(currentPassword, account.PasswordHash))
+		{
+			throw new InvalidOperationException("Current password is incorrect.");
+		}
+
+		account.IsDeleted = true;
+		account.DeletedAt = DateTime.UtcNow;
+		account.IsSiteAdmin = false;
+		await context.Users.SaveAsync(account, cancellationToken);
 	}
 
 	internal static string NormalizeEmail(string emailAddress)

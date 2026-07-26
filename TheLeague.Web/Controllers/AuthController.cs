@@ -59,6 +59,14 @@ public class AuthController(IUserService userService, IJwtTokenService jwtTokenS
 		return NoContent();
 	}
 
+	[Authorize]
+	[HttpPost("deactivate")]
+	public async Task<IActionResult> Deactivate(DeactivateAccountRequest request, CancellationToken cancellationToken)
+	{
+		await userService.DeactivateAsync(User.GetRequiredUserId(), request.CurrentPassword, cancellationToken);
+		return NoContent();
+	}
+
 	[AllowAnonymous]
 	[HttpPost("forgot-password")]
 	public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest request, CancellationToken cancellationToken)

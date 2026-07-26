@@ -24,7 +24,7 @@ public class SiteAdminUsersController(IUserService userService) : ControllerBase
 	{
 		await RequireSiteAdminAsync(cancellationToken);
 		var updated = await userService.SetSiteAdminAsync(User.GetRequiredUserId(), userId, request.IsSiteAdmin, cancellationToken);
-		return Ok(new SiteUserAdminItem(updated.Id, updated.Name, updated.EmailAddress, updated.IsEmailVerified, updated.IsSiteAdmin, updated.CreatedAt, updated.EmailVerifiedAt));
+		return Ok(new SiteUserAdminItem(updated.Id, updated.Name, updated.EmailAddress, updated.IsEmailVerified, updated.IsSiteAdmin, updated.IsDeleted, updated.CreatedAt, updated.EmailVerifiedAt, updated.DeletedAt));
 	}
 
 	private async Task RequireSiteAdminAsync(CancellationToken cancellationToken)

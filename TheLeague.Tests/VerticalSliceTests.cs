@@ -152,6 +152,28 @@ public class VerticalSliceTests
 	}
 
 	[Test]
+	public async Task DeactivatedUserCannotLogin()
+	{
+		var account = await _users.RegisterAsync("Tom", "tom@example.com", "password123");
+
+		Assert.ThrowsAsync<InvalidOperationException>(() => _users.DeactivateAsync(account.Id, "wrong-password"));
+		await _users.DeactivateAsync(account.Id, "password123");
+
+		var updated = await _users.GetByIdAsync(account.Id);
+		Assert.That(updated?.IsDeleted, Is.True);
+		Assert.That(updated?.DeletedAt, Is.Not.Null);
+		Assert.That(await _users.ValidateCredentialsAsync("tom@example.com", "password123"), Is.Null);
+	}
+
+	[Test]
+	public async Task InitialSiteAdminCannotDeactivate()
+	{
+		var account = await _users.RegisterAsync("Sam Lucas", "samlucas92@gmail.com", "password123");
+
+		Assert.ThrowsAsync<InvalidOperationException>(() => _users.DeactivateAsync(account.Id, "password123"));
+	}
+
+	[Test]
 	public async Task UserCanResetPasswordWithOneTimeToken()
 	{
 		var account = await _users.RegisterAsync("Sam", "sam@example.com", "password123");

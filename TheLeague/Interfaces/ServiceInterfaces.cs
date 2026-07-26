@@ -17,6 +17,7 @@ public interface IUserService
 	Task<UserAccount> EnsureSiteAdminStatusAsync(UserAccount account, CancellationToken cancellationToken = default);
 	Task<IReadOnlyCollection<SiteUserAdminItem>> ListForSiteAdminAsync(CancellationToken cancellationToken = default);
 	Task<UserAccount> SetSiteAdminAsync(Guid actingUserId, Guid targetUserId, bool isSiteAdmin, CancellationToken cancellationToken = default);
+	Task DeactivateAsync(Guid userId, string currentPassword, CancellationToken cancellationToken = default);
 }
 
 public interface ILeagueAuthorisationService

@@ -8,6 +8,8 @@ public class UserAccount
 	public bool IsEmailVerified { get; set; }
 	public DateTime? EmailVerifiedAt { get; set; }
 	public bool IsSiteAdmin { get; set; }
+	public bool IsDeleted { get; set; }
+	public DateTime? DeletedAt { get; set; }
 	public string PasswordHash { get; set; } = string.Empty;
 	public DateTime CreatedAt { get; set; }
 }
