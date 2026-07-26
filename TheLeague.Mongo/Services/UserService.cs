@@ -8,6 +8,8 @@ namespace TheLeague.Mongo.Services;
 
 public class UserService(LeagueDataContext context) : IUserService
 {
+	private const string InitialSiteAdminEmailAddress = "samlucas92@gmail.com";
+
 	public Task<UserAccount> RegisterAsync(string name, string emailAddress, string password, CancellationToken cancellationToken = default)
 	{
 		if (string.IsNullOrWhiteSpace(name))
@@ -31,6 +33,7 @@ public class UserService(LeagueDataContext context) : IUserService
 			Id = Guid.NewGuid(),
 			Name = name.Trim(),
 			EmailAddress = normalizedEmail,
+			IsSiteAdmin = IsInitialSiteAdmin(normalizedEmail),
 			PasswordHash = PasswordHasher.Hash(password),
 			CreatedAt = DateTime.UtcNow
 		};
@@ -40,7 +43,7 @@ public class UserService(LeagueDataContext context) : IUserService
 		return Task.FromResult(account);
 	}
 
-	public Task<UserAccount?> ValidateCredentialsAsync(string emailAddress, string password, CancellationToken cancellationToken = default)
+	public async Task<UserAccount?> ValidateCredentialsAsync(string emailAddress, string password, CancellationToken cancellationToken = default)
 	{
 		var normalizedEmail = NormalizeEmail(emailAddress);
 		var account = context.Users.Values
@@ -48,22 +51,23 @@ public class UserService(LeagueDataContext context) : IUserService
 			.OrderByDescending(user => user.CreatedAt)
 			.FirstOrDefault(user => PasswordHasher.Verify(password, user.PasswordHash));
 
-		return Task.FromResult(account);
+		return account is null ? null : await EnsureSiteAdminStatusAsync(account, cancellationToken);
 	}
 
-	public Task<UserAccount?> GetByIdAsync(Guid userId, CancellationToken cancellationToken = default)
+	public async Task<UserAccount?> GetByIdAsync(Guid userId, CancellationToken cancellationToken = default)
 	{
 		context.Users.TryGetValue(userId, out var account);
-		return Task.FromResult(account);
+		return account is null ? null : await EnsureSiteAdminStatusAsync(account, cancellationToken);
 	}
 
-	public Task<UserAccount?> GetByEmailAsync(string emailAddress, CancellationToken cancellationToken = default)
+	public async Task<UserAccount?> GetByEmailAsync(string emailAddress, CancellationToken cancellationToken = default)
 	{
 		var normalizedEmail = NormalizeEmail(emailAddress);
-		return Task.FromResult(context.Users.Values
+		var account = context.Users.Values
 			.Where(user => EmailMatches(user.EmailAddress, normalizedEmail))
 			.OrderByDescending(user => user.CreatedAt)
-			.FirstOrDefault());
+			.FirstOrDefault();
+		return account is null ? null : await EnsureSiteAdminStatusAsync(account, cancellationToken);
 	}
 
 	public async Task ChangePasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken cancellationToken = default)
@@ -224,6 +228,17 @@ public class UserService(LeagueDataContext context) : IUserService
 		await context.EmailVerificationTokens.SaveAsync(verificationToken, cancellationToken);
 	}
 
+	public async Task<UserAccount> EnsureSiteAdminStatusAsync(UserAccount account, CancellationToken cancellationToken = default)
+	{
+		if (IsInitialSiteAdmin(account.EmailAddress) && !account.IsSiteAdmin)
+		{
+			account.IsSiteAdmin = true;
+			await context.Users.SaveAsync(account, cancellationToken);
+		}
+
+		return account;
+	}
+
 	internal static string NormalizeEmail(string emailAddress)
 	{
 		if (string.IsNullOrWhiteSpace(emailAddress) || !emailAddress.Contains('@'))
@@ -236,6 +251,9 @@ public class UserService(LeagueDataContext context) : IUserService
 
 	private static bool EmailMatches(string storedEmailAddress, string normalizedEmailAddress) =>
 		string.Equals(storedEmailAddress?.Trim(), normalizedEmailAddress, StringComparison.OrdinalIgnoreCase);
+
+	private static bool IsInitialSiteAdmin(string emailAddress) =>
+		string.Equals(emailAddress.Trim(), InitialSiteAdminEmailAddress, StringComparison.OrdinalIgnoreCase);
 
 	private static string CreateToken() =>
 		Convert.ToBase64String(RandomNumberGenerator.GetBytes(48))

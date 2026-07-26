@@ -14,6 +14,7 @@ public interface IUserService
 	Task ResetPasswordAsync(string token, string newPassword, CancellationToken cancellationToken = default);
 	Task<EmailVerificationResult> RequestEmailVerificationAsync(Guid userId, CancellationToken cancellationToken = default);
 	Task VerifyEmailAsync(string token, CancellationToken cancellationToken = default);
+	Task<UserAccount> EnsureSiteAdminStatusAsync(UserAccount account, CancellationToken cancellationToken = default);
 }
 
 public interface ILeagueAuthorisationService
@@ -99,6 +100,7 @@ public interface IEmailOutboxService
 {
 	Task<EmailMessage> QueueAsync(string toEmailAddress, string? toName, string subject, string htmlBody, string textBody, CancellationToken cancellationToken = default);
 	Task<EmailMessage> SendAsync(Guid emailMessageId, CancellationToken cancellationToken = default);
+	Task<IReadOnlyCollection<EmailAuditItem>> ListRecentAsync(int take = 50, CancellationToken cancellationToken = default);
 }
 
 public interface IEmailSender

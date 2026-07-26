@@ -7,6 +7,7 @@ public class UserAccount
 	public string EmailAddress { get; set; } = string.Empty;
 	public bool IsEmailVerified { get; set; }
 	public DateTime? EmailVerifiedAt { get; set; }
+	public bool IsSiteAdmin { get; set; }
 	public string PasswordHash { get; set; } = string.Empty;
 	public DateTime CreatedAt { get; set; }
 }

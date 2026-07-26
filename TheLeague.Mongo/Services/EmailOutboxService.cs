@@ -8,6 +8,30 @@ namespace TheLeague.Mongo.Services;
 
 public class EmailOutboxService(LeagueDataContext context, IEmailSender sender, IOptions<EmailSettings> emailSettings) : IEmailOutboxService
 {
+	public Task<IReadOnlyCollection<EmailAuditItem>> ListRecentAsync(int take = 50, CancellationToken cancellationToken = default)
+	{
+		var items = context.EmailMessages.Values
+			.OrderByDescending(message => message.CreatedAt)
+			.Take(Math.Clamp(take, 1, 200))
+			.Select(message => new EmailAuditItem(
+				message.Id,
+				message.Provider,
+				message.Status.ToString(),
+				message.ToEmailAddress,
+				message.ToName,
+				message.Subject,
+				message.Attempts,
+				message.ProviderMessageId,
+				message.FailureReason,
+				message.CreatedAt,
+				message.UpdatedAt,
+				message.SentAt,
+				message.NextAttemptAt))
+			.ToArray();
+
+		return Task.FromResult<IReadOnlyCollection<EmailAuditItem>>(items);
+	}
+
 	public async Task<EmailMessage> QueueAsync(string toEmailAddress, string? toName, string subject, string htmlBody, string textBody, CancellationToken cancellationToken = default)
 	{
 		var settings = emailSettings.Value;

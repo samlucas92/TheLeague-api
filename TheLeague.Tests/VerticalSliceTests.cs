@@ -110,6 +110,20 @@ public class VerticalSliceTests
 	}
 
 	[Test]
+	public async Task SamLucasAccountIsSiteAdmin()
+	{
+		var account = await _users.RegisterAsync("Sam Lucas", "samlucas92@gmail.com", "password123");
+
+		Assert.That(account.IsSiteAdmin, Is.True);
+
+		account.IsSiteAdmin = false;
+		await _context.Users.SaveAsync(account);
+
+		var loaded = await _users.GetByIdAsync(account.Id);
+		Assert.That(loaded?.IsSiteAdmin, Is.True);
+	}
+
+	[Test]
 	public async Task UserCanChangePassword()
 	{
 		var account = await _users.RegisterAsync("Sam", "sam@example.com", "password123");

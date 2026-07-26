@@ -2,13 +2,28 @@ using TheLeague.Enums;
 
 namespace TheLeague.Models;
 
-public record AuthenticatedUser(Guid Id, string Name, string EmailAddress, bool IsEmailVerified);
+public record AuthenticatedUser(Guid Id, string Name, string EmailAddress, bool IsEmailVerified, bool IsSiteAdmin);
 
 public record ForgotPasswordResult(bool TokenCreated, string? ResetToken, DateTime? ExpiresAt);
 
 public record EmailVerificationResult(bool TokenCreated, string? VerificationToken, DateTime? ExpiresAt);
 
 public record EmailSendResult(bool Succeeded, string? ProviderMessageId, string? FailureReason);
+
+public record EmailAuditItem(
+	Guid Id,
+	string Provider,
+	string Status,
+	string ToEmailAddress,
+	string? ToName,
+	string Subject,
+	int Attempts,
+	string? ProviderMessageId,
+	string? FailureReason,
+	DateTime CreatedAt,
+	DateTime UpdatedAt,
+	DateTime? SentAt,
+	DateTime? NextAttemptAt);
 
 public record LeagueSummary(
 	Guid Id,

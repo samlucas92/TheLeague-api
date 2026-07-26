@@ -43,7 +43,7 @@ public class AuthController(IUserService userService, IJwtTokenService jwtTokenS
 	public async Task<IActionResult> Me(CancellationToken cancellationToken)
 	{
 		var account = await userService.GetByIdAsync(User.GetRequiredUserId(), cancellationToken);
-		return account is null ? Unauthorized() : Ok(new AuthenticatedUser(account.Id, account.Name, account.EmailAddress, account.IsEmailVerified));
+		return account is null ? Unauthorized() : Ok(new AuthenticatedUser(account.Id, account.Name, account.EmailAddress, account.IsEmailVerified, account.IsSiteAdmin));
 	}
 
 	[Authorize]
