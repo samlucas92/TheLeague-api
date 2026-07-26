@@ -10,6 +10,8 @@ public interface IUserService
 	Task<UserAccount?> GetByIdAsync(Guid userId, CancellationToken cancellationToken = default);
 	Task<UserAccount?> GetByEmailAsync(string emailAddress, CancellationToken cancellationToken = default);
 	Task ChangePasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken cancellationToken = default);
+	Task<ForgotPasswordResult> RequestPasswordResetAsync(string emailAddress, CancellationToken cancellationToken = default);
+	Task ResetPasswordAsync(string token, string newPassword, CancellationToken cancellationToken = default);
 }
 
 public interface ILeagueAuthorisationService
@@ -89,4 +91,15 @@ public interface ILeagueAuditService
 {
 	Task RecordAsync(Guid leagueId, Guid performedByUserId, LeagueAuditAction action, string entityType, Guid? entityId, string summary, CancellationToken cancellationToken = default);
 	Task<IReadOnlyCollection<LeagueAuditItem>> ListAsync(Guid leagueId, Guid userId, int take = 50, CancellationToken cancellationToken = default);
+}
+
+public interface IEmailOutboxService
+{
+	Task<EmailMessage> QueueAsync(string toEmailAddress, string? toName, string subject, string htmlBody, string textBody, CancellationToken cancellationToken = default);
+	Task<EmailMessage> SendAsync(Guid emailMessageId, CancellationToken cancellationToken = default);
+}
+
+public interface IEmailSender
+{
+	Task<EmailSendResult> SendAsync(EmailMessage message, CancellationToken cancellationToken = default);
 }

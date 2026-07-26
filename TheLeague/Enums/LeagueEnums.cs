@@ -109,3 +109,11 @@ public enum LeagueAuditAction
 	LeagueClosed,
 	LeagueArchived
 }
+
+public enum EmailMessageStatus
+{
+	Pending,
+	Sending,
+	Sent,
+	Failed
+}

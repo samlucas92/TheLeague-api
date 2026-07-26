@@ -10,7 +10,7 @@ namespace TheLeague.Web.Controllers;
 
 [ApiController]
 [Route("api/auth")]
-public class AuthController(IUserService userService, IJwtTokenService jwtTokenService) : ControllerBase
+public class AuthController(IUserService userService, IJwtTokenService jwtTokenService, IEmailOutboxService emailOutboxService) : ControllerBase
 {
 	[AllowAnonymous]
 	[HttpPost("register")]
@@ -53,9 +53,50 @@ public class AuthController(IUserService userService, IJwtTokenService jwtTokenS
 		return NoContent();
 	}
 
+	[AllowAnonymous]
 	[HttpPost("forgot-password")]
-	public IActionResult ForgotPassword() => Accepted();
+	public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest request, CancellationToken cancellationToken)
+	{
+		var result = await userService.RequestPasswordResetAsync(request.EmailAddress, cancellationToken);
+		if (result.ResetToken is not null)
+		{
+			var resetLink = BuildResetLink(result.ResetToken);
+			var message = await emailOutboxService.QueueAsync(
+				request.EmailAddress,
+				null,
+				"Reset your The League password",
+				BuildPasswordResetHtml(resetLink),
+				$"Reset your The League password: {resetLink}",
+				cancellationToken);
+			await emailOutboxService.SendAsync(message.Id, cancellationToken);
+		}
 
+		return Accepted(new ForgotPasswordResponse("If that email is registered, a password reset email has been sent.", null, result.ExpiresAt));
+	}
+
+	[AllowAnonymous]
 	[HttpPost("reset-password")]
-	public IActionResult ResetPassword() => StatusCode(StatusCodes.Status501NotImplemented);
+	public async Task<IActionResult> ResetPassword(ResetPasswordRequest request, CancellationToken cancellationToken)
+	{
+		await userService.ResetPasswordAsync(request.Token, request.NewPassword, cancellationToken);
+		return NoContent();
+	}
+
+	private string BuildResetLink(string token)
+	{
+		var origin = Request.Headers.Origin.FirstOrDefault();
+		if (string.IsNullOrWhiteSpace(origin))
+		{
+			origin = $"{Request.Scheme}://{Request.Host}";
+		}
+
+		return $"{origin.TrimEnd('/')}/reset-password?token={Uri.EscapeDataString(token)}";
+	}
+
+	private static string BuildPasswordResetHtml(string resetLink) =>
+		$"""
+		<p>You asked to reset your The League password.</p>
+		<p><a href="{resetLink}">Reset your password</a></p>
+		<p>If you did not request this, you can ignore this email.</p>
+		""";
 }

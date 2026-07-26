@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using TheLeague.Interfaces;
 using TheLeague.Models;
 using TheLeague.Mongo.Context;
@@ -90,6 +92,76 @@ public class UserService(LeagueDataContext context) : IUserService
 		await context.Users.SaveAsync(account, cancellationToken);
 	}
 
+	public async Task<ForgotPasswordResult> RequestPasswordResetAsync(string emailAddress, CancellationToken cancellationToken = default)
+	{
+		var normalizedEmail = NormalizeEmail(emailAddress);
+		var account = context.Users.Values
+			.Where(user => EmailMatches(user.EmailAddress, normalizedEmail))
+			.OrderByDescending(user => user.CreatedAt)
+			.FirstOrDefault();
+
+		if (account is null)
+		{
+			return new ForgotPasswordResult(false, null, null);
+		}
+
+		foreach (var existingToken in context.PasswordResetTokens.Values.Where(token => token.UserId == account.Id && token.UsedAt is null && token.ExpiresAt > DateTime.UtcNow))
+		{
+			existingToken.UsedAt = DateTime.UtcNow;
+			await context.PasswordResetTokens.SaveAsync(existingToken, cancellationToken);
+		}
+
+		var resetToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(48))
+			.Replace("+", "-")
+			.Replace("/", "_")
+			.TrimEnd('=');
+		var expiresAt = DateTime.UtcNow.AddHours(1);
+		var token = new PasswordResetToken
+		{
+			Id = Guid.NewGuid(),
+			UserId = account.Id,
+			TokenHash = HashResetToken(resetToken),
+			ExpiresAt = expiresAt,
+			CreatedAt = DateTime.UtcNow
+		};
+
+		context.PasswordResetTokens[token.Id] = token;
+		return new ForgotPasswordResult(true, resetToken, expiresAt);
+	}
+
+	public async Task ResetPasswordAsync(string token, string newPassword, CancellationToken cancellationToken = default)
+	{
+		if (string.IsNullOrWhiteSpace(token))
+		{
+			throw new InvalidOperationException("Reset token is required.");
+		}
+
+		if (string.IsNullOrWhiteSpace(newPassword) || newPassword.Length < 8)
+		{
+			throw new InvalidOperationException("New password must be at least 8 characters.");
+		}
+
+		var tokenHash = HashResetToken(token.Trim());
+		var resetToken = context.PasswordResetTokens.Values
+			.Where(candidate => candidate.TokenHash == tokenHash)
+			.OrderByDescending(candidate => candidate.CreatedAt)
+			.FirstOrDefault();
+		if (resetToken is null || resetToken.UsedAt.HasValue || resetToken.ExpiresAt <= DateTime.UtcNow)
+		{
+			throw new InvalidOperationException("Reset link is invalid or has expired.");
+		}
+
+		if (!context.Users.TryGetValue(resetToken.UserId, out var account))
+		{
+			throw new InvalidOperationException("Reset link is invalid or has expired.");
+		}
+
+		account.PasswordHash = PasswordHasher.Hash(newPassword);
+		resetToken.UsedAt = DateTime.UtcNow;
+		await context.Users.SaveAsync(account, cancellationToken);
+		await context.PasswordResetTokens.SaveAsync(resetToken, cancellationToken);
+	}
+
 	internal static string NormalizeEmail(string emailAddress)
 	{
 		if (string.IsNullOrWhiteSpace(emailAddress) || !emailAddress.Contains('@'))
@@ -102,4 +174,10 @@ public class UserService(LeagueDataContext context) : IUserService
 
 	private static bool EmailMatches(string storedEmailAddress, string normalizedEmailAddress) =>
 		string.Equals(storedEmailAddress?.Trim(), normalizedEmailAddress, StringComparison.OrdinalIgnoreCase);
+
+	private static string HashResetToken(string token)
+	{
+		var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(token));
+		return Convert.ToHexString(bytes);
+	}
 }

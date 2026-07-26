@@ -4,6 +4,10 @@ namespace TheLeague.Models;
 
 public record AuthenticatedUser(Guid Id, string Name, string EmailAddress);
 
+public record ForgotPasswordResult(bool TokenCreated, string? ResetToken, DateTime? ExpiresAt);
+
+public record EmailSendResult(bool Succeeded, string? ProviderMessageId, string? FailureReason);
+
 public record LeagueSummary(
 	Guid Id,
 	string Name,

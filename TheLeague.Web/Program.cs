@@ -3,9 +3,11 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using TheLeague.Interfaces;
+using TheLeague.Models;
 using TheLeague.Mongo.Context;
 using TheLeague.Mongo.Services;
 using TheLeague.Web.Security;
+using TheLeague.Web.Services;
 using TheLeague.Web.WebModels;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -36,6 +38,8 @@ builder.Services
 	});
 
 builder.Services.Configure<MongoSettings>(builder.Configuration.GetSection("Mongo"));
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Email"));
+builder.Services.Configure<ResendSettings>(builder.Configuration.GetSection("Resend"));
 builder.Services.Configure<JwtSettings>(options =>
 {
 	options.Issuer = jwtSettings.Issuer;
@@ -54,6 +58,8 @@ builder.Services.AddScoped<IPointSubmissionService, PointSubmissionService>();
 builder.Services.AddScoped<IPointAllocationService, PointAllocationService>();
 builder.Services.AddScoped<ILeaderboardService, LeaderboardService>();
 builder.Services.AddScoped<ILeagueAuditService, LeagueAuditService>();
+builder.Services.AddScoped<IEmailOutboxService, EmailOutboxService>();
+builder.Services.AddHttpClient<IEmailSender, ResendEmailSender>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 
 var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Secret));

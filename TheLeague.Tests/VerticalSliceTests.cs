@@ -3,6 +3,7 @@ using TheLeague.Interfaces;
 using TheLeague.Models;
 using TheLeague.Mongo.Context;
 using TheLeague.Mongo.Services;
+using Microsoft.Extensions.Options;
 
 namespace TheLeague.Tests;
 
@@ -119,6 +120,59 @@ public class VerticalSliceTests
 		Assert.That((await _users.ValidateCredentialsAsync("sam@example.com", "new-password123"))?.Id, Is.EqualTo(account.Id));
 		Assert.ThrowsAsync<InvalidOperationException>(() => _users.ChangePasswordAsync(account.Id, "wrong-password", "another-password123"));
 		Assert.ThrowsAsync<InvalidOperationException>(() => _users.ChangePasswordAsync(account.Id, "new-password123", "short"));
+	}
+
+	[Test]
+	public async Task UserCanResetPasswordWithOneTimeToken()
+	{
+		var account = await _users.RegisterAsync("Sam", "sam@example.com", "password123");
+
+		var request = await _users.RequestPasswordResetAsync("sam@example.com");
+		await _users.ResetPasswordAsync(request.ResetToken!, "reset-password123");
+
+		Assert.That(request.TokenCreated, Is.True);
+		Assert.That(request.ResetToken, Is.Not.Null);
+		Assert.That(await _users.ValidateCredentialsAsync("sam@example.com", "password123"), Is.Null);
+		Assert.That((await _users.ValidateCredentialsAsync("sam@example.com", "reset-password123"))?.Id, Is.EqualTo(account.Id));
+		Assert.ThrowsAsync<InvalidOperationException>(() => _users.ResetPasswordAsync(request.ResetToken!, "another-password123"));
+	}
+
+	[Test]
+	public async Task UnknownPasswordResetEmailDoesNotCreateToken()
+	{
+		var request = await _users.RequestPasswordResetAsync("missing@example.com");
+
+		Assert.That(request.TokenCreated, Is.False);
+		Assert.That(request.ResetToken, Is.Null);
+		Assert.That(_context.PasswordResetTokens.Values, Is.Empty);
+	}
+
+	[Test]
+	public async Task EmailOutboxStoresSendStatusAndFailures()
+	{
+		var sender = new FakeEmailSender();
+		var outbox = new EmailOutboxService(_context, sender, Options.Create(new EmailSettings
+		{
+			FromEmail = "hello@example.com",
+			FromName = "The League"
+		}));
+
+		var message = await outbox.QueueAsync("sam@example.com", "Sam", "Subject", "<p>Hello</p>", "Hello");
+		Assert.That(message.Status, Is.EqualTo(EmailMessageStatus.Pending));
+
+		var sent = await outbox.SendAsync(message.Id);
+
+		Assert.That(sent.Status, Is.EqualTo(EmailMessageStatus.Sent));
+		Assert.That(sent.Attempts, Is.EqualTo(1));
+		Assert.That(sent.ProviderMessageId, Is.EqualTo("resend-message-id"));
+
+		sender.FailureReason = "Provider unavailable";
+		var failedMessage = await outbox.QueueAsync("tom@example.com", null, "Subject", "<p>Hello</p>", "Hello");
+		var failed = await outbox.SendAsync(failedMessage.Id);
+
+		Assert.That(failed.Status, Is.EqualTo(EmailMessageStatus.Failed));
+		Assert.That(failed.FailureReason, Is.EqualTo("Provider unavailable"));
+		Assert.That(failed.NextAttemptAt, Is.Not.Null);
 	}
 
 	[Test]
@@ -443,5 +497,15 @@ public class VerticalSliceTests
 		Assert.That(audit.Select(entry => entry.Action), Does.Contain(LeagueAuditAction.RoleChanged));
 		Assert.That(audit.First().CreatedAt, Is.GreaterThanOrEqualTo(audit.Last().CreatedAt));
 		Assert.ThrowsAsync<UnauthorizedAccessException>(() => _audit.ListAsync(league.Id, participant.Id));
+	}
+
+	private sealed class FakeEmailSender : IEmailSender
+	{
+		public string? FailureReason { get; set; }
+
+		public Task<EmailSendResult> SendAsync(EmailMessage message, CancellationToken cancellationToken = default) =>
+			Task.FromResult(FailureReason is null
+				? new EmailSendResult(true, "resend-message-id", null)
+				: new EmailSendResult(false, null, FailureReason));
 	}
 }
