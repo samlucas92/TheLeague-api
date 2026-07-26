@@ -162,6 +162,68 @@ public class UserService(LeagueDataContext context) : IUserService
 		await context.PasswordResetTokens.SaveAsync(resetToken, cancellationToken);
 	}
 
+	public async Task<EmailVerificationResult> RequestEmailVerificationAsync(Guid userId, CancellationToken cancellationToken = default)
+	{
+		if (!context.Users.TryGetValue(userId, out var account))
+		{
+			throw new UnauthorizedAccessException("Please sign in again.");
+		}
+
+		if (account.IsEmailVerified)
+		{
+			return new EmailVerificationResult(false, null, account.EmailVerifiedAt);
+		}
+
+		foreach (var existingToken in context.EmailVerificationTokens.Values.Where(token => token.UserId == account.Id && token.UsedAt is null && token.ExpiresAt > DateTime.UtcNow))
+		{
+			existingToken.UsedAt = DateTime.UtcNow;
+			await context.EmailVerificationTokens.SaveAsync(existingToken, cancellationToken);
+		}
+
+		var verificationToken = CreateToken();
+		var expiresAt = DateTime.UtcNow.AddHours(24);
+		var token = new EmailVerificationToken
+		{
+			Id = Guid.NewGuid(),
+			UserId = account.Id,
+			TokenHash = HashToken(verificationToken),
+			ExpiresAt = expiresAt,
+			CreatedAt = DateTime.UtcNow
+		};
+
+		context.EmailVerificationTokens[token.Id] = token;
+		return new EmailVerificationResult(true, verificationToken, expiresAt);
+	}
+
+	public async Task VerifyEmailAsync(string token, CancellationToken cancellationToken = default)
+	{
+		if (string.IsNullOrWhiteSpace(token))
+		{
+			throw new InvalidOperationException("Verification token is required.");
+		}
+
+		var tokenHash = HashToken(token.Trim());
+		var verificationToken = context.EmailVerificationTokens.Values
+			.Where(candidate => candidate.TokenHash == tokenHash)
+			.OrderByDescending(candidate => candidate.CreatedAt)
+			.FirstOrDefault();
+		if (verificationToken is null || verificationToken.UsedAt.HasValue || verificationToken.ExpiresAt <= DateTime.UtcNow)
+		{
+			throw new InvalidOperationException("Verification link is invalid or has expired.");
+		}
+
+		if (!context.Users.TryGetValue(verificationToken.UserId, out var account))
+		{
+			throw new InvalidOperationException("Verification link is invalid or has expired.");
+		}
+
+		account.IsEmailVerified = true;
+		account.EmailVerifiedAt = DateTime.UtcNow;
+		verificationToken.UsedAt = DateTime.UtcNow;
+		await context.Users.SaveAsync(account, cancellationToken);
+		await context.EmailVerificationTokens.SaveAsync(verificationToken, cancellationToken);
+	}
+
 	internal static string NormalizeEmail(string emailAddress)
 	{
 		if (string.IsNullOrWhiteSpace(emailAddress) || !emailAddress.Contains('@'))
@@ -175,7 +237,18 @@ public class UserService(LeagueDataContext context) : IUserService
 	private static bool EmailMatches(string storedEmailAddress, string normalizedEmailAddress) =>
 		string.Equals(storedEmailAddress?.Trim(), normalizedEmailAddress, StringComparison.OrdinalIgnoreCase);
 
+	private static string CreateToken() =>
+		Convert.ToBase64String(RandomNumberGenerator.GetBytes(48))
+			.Replace("+", "-")
+			.Replace("/", "_")
+			.TrimEnd('=');
+
 	private static string HashResetToken(string token)
+	{
+		return HashToken(token);
+	}
+
+	private static string HashToken(string token)
 	{
 		var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(token));
 		return Convert.ToHexString(bytes);

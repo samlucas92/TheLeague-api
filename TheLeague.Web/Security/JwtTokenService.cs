@@ -41,7 +41,7 @@ public sealed class JwtTokenService(IOptions<JwtSettings> jwtSettings) : IJwtTok
 		{
 			Token = new JwtSecurityTokenHandler().WriteToken(token),
 			ExpiresAt = expiresAt,
-			User = new AuthenticatedUser(account.Id, account.Name, account.EmailAddress)
+			User = new AuthenticatedUser(account.Id, account.Name, account.EmailAddress, account.IsEmailVerified)
 		};
 	}
 }

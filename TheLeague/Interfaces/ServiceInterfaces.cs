@@ -12,6 +12,8 @@ public interface IUserService
 	Task ChangePasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken cancellationToken = default);
 	Task<ForgotPasswordResult> RequestPasswordResetAsync(string emailAddress, CancellationToken cancellationToken = default);
 	Task ResetPasswordAsync(string token, string newPassword, CancellationToken cancellationToken = default);
+	Task<EmailVerificationResult> RequestEmailVerificationAsync(Guid userId, CancellationToken cancellationToken = default);
+	Task VerifyEmailAsync(string token, CancellationToken cancellationToken = default);
 }
 
 public interface ILeagueAuthorisationService

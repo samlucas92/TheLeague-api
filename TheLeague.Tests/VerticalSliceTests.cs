@@ -176,6 +176,23 @@ public class VerticalSliceTests
 	}
 
 	[Test]
+	public async Task UserCanVerifyEmailWithOneTimeToken()
+	{
+		var account = await _users.RegisterAsync("Sam", "sam@example.com", "password123");
+
+		var request = await _users.RequestEmailVerificationAsync(account.Id);
+		await _users.VerifyEmailAsync(request.VerificationToken!);
+
+		var updated = await _users.GetByIdAsync(account.Id);
+		Assert.That(request.TokenCreated, Is.True);
+		Assert.That(request.VerificationToken, Is.Not.Null);
+		Assert.That(updated?.IsEmailVerified, Is.True);
+		Assert.That(updated?.EmailVerifiedAt, Is.Not.Null);
+		Assert.ThrowsAsync<InvalidOperationException>(() => _users.VerifyEmailAsync(request.VerificationToken!));
+		Assert.That((await _users.RequestEmailVerificationAsync(account.Id)).TokenCreated, Is.False);
+	}
+
+	[Test]
 	public async Task ParticipantCannotApproveSubmission()
 	{
 		var owner = await _users.RegisterAsync("Sam", "sam@example.com", "password123");

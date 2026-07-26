@@ -2,9 +2,11 @@ using TheLeague.Enums;
 
 namespace TheLeague.Models;
 
-public record AuthenticatedUser(Guid Id, string Name, string EmailAddress);
+public record AuthenticatedUser(Guid Id, string Name, string EmailAddress, bool IsEmailVerified);
 
 public record ForgotPasswordResult(bool TokenCreated, string? ResetToken, DateTime? ExpiresAt);
+
+public record EmailVerificationResult(bool TokenCreated, string? VerificationToken, DateTime? ExpiresAt);
 
 public record EmailSendResult(bool Succeeded, string? ProviderMessageId, string? FailureReason);
 

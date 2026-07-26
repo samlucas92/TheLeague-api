@@ -41,6 +41,7 @@ public class LeagueDataContext
 			Allocations = MongoEntitySet<PointAllocation>.InMemory();
 			AuditEntries = MongoEntitySet<LeagueAuditEntry>.InMemory();
 			PasswordResetTokens = MongoEntitySet<PasswordResetToken>.InMemory();
+			EmailVerificationTokens = MongoEntitySet<EmailVerificationToken>.InMemory();
 			EmailMessages = MongoEntitySet<EmailMessage>.InMemory();
 			return;
 		}
@@ -55,6 +56,7 @@ public class LeagueDataContext
 		Allocations = MongoEntitySet<PointAllocation>.FromCollection(database.GetCollection<PointAllocation>("allocations"));
 		AuditEntries = MongoEntitySet<LeagueAuditEntry>.FromCollection(database.GetCollection<LeagueAuditEntry>("auditEntries"));
 		PasswordResetTokens = MongoEntitySet<PasswordResetToken>.FromCollection(database.GetCollection<PasswordResetToken>("passwordResetTokens"));
+		EmailVerificationTokens = MongoEntitySet<EmailVerificationToken>.FromCollection(database.GetCollection<EmailVerificationToken>("emailVerificationTokens"));
 		EmailMessages = MongoEntitySet<EmailMessage>.FromCollection(database.GetCollection<EmailMessage>("emailMessages"));
 		CreateIndexes(database);
 	}
@@ -67,6 +69,7 @@ public class LeagueDataContext
 	public MongoEntitySet<PointAllocation> Allocations { get; }
 	public MongoEntitySet<LeagueAuditEntry> AuditEntries { get; }
 	public MongoEntitySet<PasswordResetToken> PasswordResetTokens { get; }
+	public MongoEntitySet<EmailVerificationToken> EmailVerificationTokens { get; }
 	public MongoEntitySet<EmailMessage> EmailMessages { get; }
 
 	private static void CreateIndexes(IMongoDatabase database)
