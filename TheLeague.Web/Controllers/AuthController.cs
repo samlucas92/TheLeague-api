@@ -16,6 +16,11 @@ public class AuthController(IUserService userService, IJwtTokenService jwtTokenS
 	[HttpPost("register")]
 	public async Task<IActionResult> Register(RegisterRequest request, CancellationToken cancellationToken)
 	{
+		if (!request.AcceptedTerms)
+		{
+			return BadRequest(new { error = "You must agree to the Terms of Service to create an account." });
+		}
+
 		var account = await userService.RegisterAsync(request.Name, request.EmailAddress, request.Password, cancellationToken);
 		await QueueVerificationEmailAsync(account, cancellationToken);
 		return Ok(jwtTokenService.CreateLoginResponse(account));

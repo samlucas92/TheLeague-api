@@ -2,7 +2,7 @@ using TheLeague.Enums;
 
 namespace TheLeague.Web.WebModels;
 
-public record RegisterRequest(string Name, string EmailAddress, string Password);
+public record RegisterRequest(string Name, string EmailAddress, string Password, bool AcceptedTerms);
 public record LoginRequest(string EmailAddress, string Password);
 public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 public record ForgotPasswordRequest(string EmailAddress);
