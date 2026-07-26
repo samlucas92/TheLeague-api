@@ -11,6 +11,19 @@ public class Tournament
 	public string Name { get; set; } = string.Empty;
 	public TournamentGameType GameType { get; set; }
 	public TournamentFormat Format { get; set; }
+	public TournamentStructure Structure { get; set; } = TournamentStructure.KnockoutOnly;
+	public TournamentMatchRule MatchRule { get; set; } = TournamentMatchRule.FirstTo;
+	public int FramesOrLegs { get; set; } = 5;
+	public List<string> PoolRules { get; set; } = [];
+	public PoolBreakRule BreakRule { get; set; } = PoolBreakRule.NormalBreak;
+	public bool CallShotRequired { get; set; }
+	public bool AllowRerack { get; set; }
+	public bool PushOutAfterFouls { get; set; }
+	public bool DoubleInRequired { get; set; } = true;
+	public bool DoubleOutRequired { get; set; } = true;
+	public int? StartScore { get; set; }
+	public int MinimumPlayers { get; set; } = 2;
+	public int? RoundTimeLimitMinutes { get; set; }
 	public TournamentStatus Status { get; set; }
 	public List<TournamentParticipant> Participants { get; set; } = [];
 	public List<TournamentMatch> Matches { get; set; } = [];

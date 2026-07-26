@@ -2,6 +2,7 @@ using TheLeague.Enums;
 using TheLeague.Interfaces;
 using TheLeague.Models;
 using TheLeague.Mongo.Context;
+using System.Security.Cryptography;
 
 namespace TheLeague.Mongo.Services;
 
@@ -36,17 +37,25 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 		tournament.CreatedByUserId = userId;
 		tournament.Name = tournament.Name.Trim();
 		tournament.Status = TournamentStatus.Active;
-		tournament.Participants = participants;
+		tournament.Participants = ShuffleParticipants(participants);
+		tournament.FramesOrLegs = Math.Max(1, tournament.FramesOrLegs);
+		tournament.MinimumPlayers = Math.Max(2, tournament.MinimumPlayers);
 		tournament.EliminatePerRound = Math.Max(1, tournament.EliminatePerRound);
+		tournament.StartScore ??= tournament.GameType switch
+		{
+			TournamentGameType.Darts301 => 301,
+			TournamentGameType.Darts501 => 501,
+			_ => null
+		};
 		tournament.CreatedAt = DateTime.UtcNow;
 
 		if (tournament.Format == TournamentFormat.SingleEliminationBracket)
 		{
-			tournament.Matches = BuildOpeningBracket(participants);
+			tournament.Matches = BuildOpeningBracket(tournament.Participants);
 		}
 		else
 		{
-			tournament.Rounds = [BuildNextRound(participants, 1)];
+			tournament.Rounds = [BuildNextRound(tournament.Participants, 1)];
 		}
 
 		context.Tournaments[tournament.Id] = tournament;
@@ -210,7 +219,25 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 		{
 			throw new InvalidOperationException("The elimination count must leave at least one player each round.");
 		}
+
+		if (tournament.FramesOrLegs < 1)
+		{
+			throw new InvalidOperationException("Match length must be at least one.");
+		}
 	}
+
+	private static List<TournamentParticipant> ShuffleParticipants(IReadOnlyList<TournamentParticipant> participants) =>
+		participants
+			.OrderBy(_ => RandomNumberGenerator.GetInt32(int.MaxValue))
+			.Select((participant, index) => new TournamentParticipant
+			{
+				LeagueMemberId = participant.LeagueMemberId,
+				DisplayName = participant.DisplayName,
+				Seed = index + 1,
+				IsEliminated = participant.IsEliminated,
+				TotalScore = participant.TotalScore
+			})
+			.ToList();
 
 	private static List<TournamentMatch> BuildOpeningBracket(IReadOnlyList<TournamentParticipant> participants)
 	{
@@ -340,6 +367,19 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 			tournament.Name,
 			tournament.GameType,
 			tournament.Format,
+			tournament.Structure,
+			tournament.MatchRule,
+			tournament.FramesOrLegs,
+			tournament.PoolRules,
+			tournament.BreakRule,
+			tournament.CallShotRequired,
+			tournament.AllowRerack,
+			tournament.PushOutAfterFouls,
+			tournament.DoubleInRequired,
+			tournament.DoubleOutRequired,
+			tournament.StartScore,
+			tournament.MinimumPlayers,
+			tournament.RoundTimeLimitMinutes,
 			tournament.Status,
 			tournament.ChallengeId,
 			tournament.Participants.Count,

@@ -20,15 +20,28 @@ public class TournamentsController(ITournamentService tournamentService) : Contr
 	[HttpPost]
 	public async Task<IActionResult> Create(Guid leagueId, CreateTournamentRequest request, CancellationToken cancellationToken)
 	{
-		var format = request.Format ?? (request.GameType == TournamentGameType.Pool
-			? TournamentFormat.SingleEliminationBracket
-			: TournamentFormat.RoundElimination);
+		var format = request.Format ?? (request.GameType == TournamentGameType.DartsHighestScore
+			? TournamentFormat.RoundElimination
+			: TournamentFormat.SingleEliminationBracket);
 
 		var tournament = new Tournament
 		{
 			Name = request.Name,
 			GameType = request.GameType,
 			Format = format,
+			Structure = request.Structure ?? TournamentStructure.KnockoutOnly,
+			MatchRule = request.MatchRule ?? TournamentMatchRule.FirstTo,
+			FramesOrLegs = request.FramesOrLegs ?? 5,
+			PoolRules = request.PoolRules?.Where(rule => !string.IsNullOrWhiteSpace(rule)).Select(rule => rule.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? [],
+			BreakRule = request.BreakRule ?? PoolBreakRule.NormalBreak,
+			CallShotRequired = request.CallShotRequired,
+			AllowRerack = request.AllowRerack,
+			PushOutAfterFouls = request.PushOutAfterFouls,
+			DoubleInRequired = request.DoubleInRequired,
+			DoubleOutRequired = request.DoubleOutRequired,
+			StartScore = request.StartScore,
+			MinimumPlayers = request.MinimumPlayers ?? 2,
+			RoundTimeLimitMinutes = request.RoundTimeLimitMinutes,
 			WinnerPoints = request.WinnerPoints,
 			RunnerUpPoints = request.RunnerUpPoints,
 			MatchWinPoints = request.MatchWinPoints,

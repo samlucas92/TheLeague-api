@@ -138,6 +138,25 @@ public enum TournamentFormat
 	RoundElimination
 }
 
+public enum TournamentStructure
+{
+	KnockoutOnly,
+	LeagueAndKnockout
+}
+
+public enum TournamentMatchRule
+{
+	FirstTo,
+	BestOf
+}
+
+public enum PoolBreakRule
+{
+	NormalBreak,
+	WinnerBreak,
+	AlternateBreak
+}
+
 public enum TournamentStatus
 {
 	Draft,
