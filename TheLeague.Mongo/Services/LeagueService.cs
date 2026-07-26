@@ -13,6 +13,7 @@ public class LeagueService(
 	ILeaderboardService leaderboardService,
 	IPointAllocationService allocationService,
 	IChallengeService challengeService,
+	ITournamentService tournamentService,
 	ILeagueAuthorisationService authorisationService,
 	ILeagueAuditService auditService) : ILeagueService
 {
@@ -145,8 +146,9 @@ public class LeagueService(
 		var leaderboard = await leaderboardService.GetPublicAsync(league.Id, cancellationToken);
 		var feed = await allocationService.ListPublicFeedAsync(league.Id, cancellationToken);
 		var challenges = await challengeService.ListPublicAsync(league.Id, cancellationToken);
+		var tournaments = await tournamentService.ListPublicAsync(league.Id, cancellationToken);
 
-		return new PublicLeagueView(league, members, leaderboard, feed, challenges);
+		return new PublicLeagueView(league, members, leaderboard, feed, challenges, tournaments);
 	}
 
 	private League GetLeague(Guid leagueId)

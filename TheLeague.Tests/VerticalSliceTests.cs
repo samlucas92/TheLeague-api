@@ -15,6 +15,7 @@ public class VerticalSliceTests
 	private ILeagueMemberService _members = null!;
 	private IChallengeService _challenges = null!;
 	private IPointSubmissionService _submissions = null!;
+	private ITournamentService _tournaments = null!;
 	private ILeaderboardService _leaderboard = null!;
 	private IPointAllocationService _allocations = null!;
 	private ILeagueAuditService _audit = null!;
@@ -29,10 +30,11 @@ public class VerticalSliceTests
 		_members = new LeagueMemberService(_context, authorisation, _audit);
 		var presets = new LeaguePresetService();
 		_challenges = new ChallengeService(_context, authorisation, _audit);
+		_tournaments = new TournamentService(_context, authorisation, _audit);
 		_submissions = new PointSubmissionService(_context, authorisation, _audit);
 		_leaderboard = new LeaderboardService(_context, authorisation);
 		_allocations = new PointAllocationService(_context, authorisation, _audit);
-		_leagues = new LeagueService(_context, _members, presets, _leaderboard, _allocations, _challenges, authorisation, _audit);
+		_leagues = new LeagueService(_context, _members, presets, _leaderboard, _allocations, _challenges, _tournaments, authorisation, _audit);
 	}
 
 	[Test]
@@ -62,6 +64,60 @@ public class VerticalSliceTests
 		Assert.That(leaderboard.Single(row => row.LeagueMemberId == joinedMember.Id).ApprovedPoints, Is.EqualTo(20));
 		Assert.That(feed.Single().Reason, Is.EqualTo("Won the pool tournament"));
 		Assert.That(feed.Single().AwardedByName, Is.EqualTo("Tom"));
+	}
+
+	[Test]
+	public async Task TournamentsCanRunPoolBracketAndDartsRoundElimination()
+	{
+		var owner = await _users.RegisterAsync("Sam", "sam@example.com", "password123");
+		var playerTwo = await _users.RegisterAsync("Tom", "tom@example.com", "password123");
+		var playerThree = await _users.RegisterAsync("Kyle", "kyle@example.com", "password123");
+		var league = await _leagues.CreateAsync(owner.Id, "Pub games", null, LeaguePresetType.Custom, LeagueJoinMode.OpenWithCode);
+		var ownerMember = (await _members.ListAsync(league.Id, owner.Id)).Single(member => member.UserId == owner.Id);
+		var tom = await _members.JoinAsync(playerTwo.Id, league.JoinCode, "Tom");
+		var kyle = await _members.JoinAsync(playerThree.Id, league.JoinCode, "Kyle");
+
+		var pool = await _tournaments.CreateAsync(league.Id, owner.Id, new()
+		{
+			Name = "Pool knockout",
+			GameType = TournamentGameType.Pool,
+			Format = TournamentFormat.SingleEliminationBracket,
+			WinnerPoints = 20,
+			RunnerUpPoints = 5,
+			MatchWinPoints = 2
+		}, [ownerMember.Id, tom.Id], CancellationToken.None);
+
+		var poolMatch = pool.Matches.Single();
+		var completedPool = await _tournaments.CompleteMatchAsync(league.Id, owner.Id, pool.Id, poolMatch.Id, tom.Id, 1, 2);
+		Assert.That(completedPool.Status, Is.EqualTo(TournamentStatus.Completed));
+		Assert.That(completedPool.WinnerMemberId, Is.EqualTo(tom.Id));
+
+		var darts = await _tournaments.CreateAsync(league.Id, owner.Id, new()
+		{
+			Name = "Highest score darts",
+			GameType = TournamentGameType.DartsHighestScore,
+			Format = TournamentFormat.RoundElimination,
+			WinnerPoints = 15,
+			EliminatePerRound = 1
+		}, [ownerMember.Id, tom.Id, kyle.Id], CancellationToken.None);
+
+		await _tournaments.ScoreRoundAsync(league.Id, owner.Id, darts.Id, new Dictionary<Guid, int>
+		{
+			[ownerMember.Id] = 40,
+			[tom.Id] = 60,
+			[kyle.Id] = 20
+		});
+		var completedDarts = await _tournaments.ScoreRoundAsync(league.Id, owner.Id, darts.Id, new Dictionary<Guid, int>
+		{
+			[ownerMember.Id] = 80,
+			[tom.Id] = 70
+		});
+
+		Assert.That(completedDarts.Status, Is.EqualTo(TournamentStatus.Completed));
+		Assert.That(completedDarts.WinnerMemberId, Is.EqualTo(ownerMember.Id));
+		var leaderboard = await _leaderboard.GetAsync(league.Id, owner.Id);
+		Assert.That(leaderboard.Single(row => row.LeagueMemberId == tom.Id).ApprovedPoints, Is.EqualTo(22));
+		Assert.That(leaderboard.Single(row => row.LeagueMemberId == ownerMember.Id).ApprovedPoints, Is.EqualTo(20));
 	}
 
 	[Test]

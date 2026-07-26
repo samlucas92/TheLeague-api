@@ -73,7 +73,8 @@ public enum PointAllocationSource
 	AdminPenalty,
 	Adjustment,
 	Reversal,
-	PresetBonus
+	PresetBonus,
+	TournamentAward
 }
 
 public enum LeagueAuditAction
@@ -106,6 +107,11 @@ public enum LeagueAuditAction
 	AllocationEdited,
 	AllocationDeleted,
 	AllocationReversed,
+	TournamentCreated,
+	TournamentMatchCompleted,
+	TournamentRoundScored,
+	TournamentCompleted,
+	TournamentDeleted,
 	LeagueClosed,
 	LeagueArchived
 }
@@ -116,4 +122,31 @@ public enum EmailMessageStatus
 	Sending,
 	Sent,
 	Failed
+}
+
+public enum TournamentGameType
+{
+	Pool,
+	DartsHighestScore
+}
+
+public enum TournamentFormat
+{
+	SingleEliminationBracket,
+	RoundElimination
+}
+
+public enum TournamentStatus
+{
+	Draft,
+	Active,
+	Completed,
+	Cancelled
+}
+
+public enum TournamentMatchStatus
+{
+	Pending,
+	Ready,
+	Completed
 }

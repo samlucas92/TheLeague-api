@@ -54,6 +54,7 @@ builder.Services.AddScoped<ILeagueService, LeagueService>();
 builder.Services.AddScoped<ILeagueMemberService, LeagueMemberService>();
 builder.Services.AddScoped<ILeaguePresetService, LeaguePresetService>();
 builder.Services.AddScoped<IChallengeService, ChallengeService>();
+builder.Services.AddScoped<ITournamentService, TournamentService>();
 builder.Services.AddScoped<IPointSubmissionService, PointSubmissionService>();
 builder.Services.AddScoped<IPointAllocationService, PointAllocationService>();
 builder.Services.AddScoped<ILeaderboardService, LeaderboardService>();

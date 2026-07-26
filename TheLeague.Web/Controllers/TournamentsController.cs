@@ -1,0 +1,57 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using TheLeague.Enums;
+using TheLeague.Interfaces;
+using TheLeague.Models;
+using TheLeague.Web.Extensions;
+using TheLeague.Web.WebModels;
+
+namespace TheLeague.Web.Controllers;
+
+[Authorize]
+[ApiController]
+[Route("api/leagues/{leagueId:guid}/tournaments")]
+public class TournamentsController(ITournamentService tournamentService) : ControllerBase
+{
+	[HttpGet]
+	public async Task<IActionResult> List(Guid leagueId, CancellationToken cancellationToken) =>
+		Ok(await tournamentService.ListAsync(leagueId, User.GetRequiredUserId(), cancellationToken));
+
+	[HttpPost]
+	public async Task<IActionResult> Create(Guid leagueId, CreateTournamentRequest request, CancellationToken cancellationToken)
+	{
+		var format = request.Format ?? (request.GameType == TournamentGameType.Pool
+			? TournamentFormat.SingleEliminationBracket
+			: TournamentFormat.RoundElimination);
+
+		var tournament = new Tournament
+		{
+			Name = request.Name,
+			GameType = request.GameType,
+			Format = format,
+			WinnerPoints = request.WinnerPoints,
+			RunnerUpPoints = request.RunnerUpPoints,
+			MatchWinPoints = request.MatchWinPoints,
+			EliminatePerRound = request.EliminatePerRound,
+			ChallengeId = request.ChallengeId
+		};
+
+		var created = await tournamentService.CreateAsync(leagueId, User.GetRequiredUserId(), tournament, request.ParticipantMemberIds, cancellationToken);
+		return Created($"/api/leagues/{leagueId}/tournaments/{created.Id}", created);
+	}
+
+	[HttpPost("{tournamentId:guid}/matches/{matchId:guid}/complete")]
+	public async Task<IActionResult> CompleteMatch(Guid leagueId, Guid tournamentId, Guid matchId, CompleteTournamentMatchRequest request, CancellationToken cancellationToken) =>
+		Ok(await tournamentService.CompleteMatchAsync(leagueId, User.GetRequiredUserId(), tournamentId, matchId, request.WinnerMemberId, request.PlayerOneScore, request.PlayerTwoScore, cancellationToken));
+
+	[HttpPost("{tournamentId:guid}/rounds/score")]
+	public async Task<IActionResult> ScoreRound(Guid leagueId, Guid tournamentId, ScoreTournamentRoundRequest request, CancellationToken cancellationToken) =>
+		Ok(await tournamentService.ScoreRoundAsync(leagueId, User.GetRequiredUserId(), tournamentId, request.Scores, cancellationToken));
+
+	[HttpDelete("{tournamentId:guid}")]
+	public async Task<IActionResult> Delete(Guid leagueId, Guid tournamentId, CancellationToken cancellationToken)
+	{
+		await tournamentService.DeleteAsync(leagueId, User.GetRequiredUserId(), tournamentId, cancellationToken);
+		return NoContent();
+	}
+}

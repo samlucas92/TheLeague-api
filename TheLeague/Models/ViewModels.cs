@@ -80,7 +80,28 @@ public record PublicLeagueView(
 	IReadOnlyCollection<LeagueMember> Members,
 	IReadOnlyCollection<LeaderboardRow> Leaderboard,
 	IReadOnlyCollection<PointsFeedItem> PointsFeed,
-	IReadOnlyCollection<ChallengeListItem> Challenges);
+	IReadOnlyCollection<ChallengeListItem> Challenges,
+	IReadOnlyCollection<TournamentListItem> Tournaments);
+
+public record TournamentListItem(
+	Guid Id,
+	string Name,
+	TournamentGameType GameType,
+	TournamentFormat Format,
+	TournamentStatus Status,
+	Guid? ChallengeId,
+	int ParticipantCount,
+	int WinnerPoints,
+	int RunnerUpPoints,
+	int MatchWinPoints,
+	int EliminatePerRound,
+	Guid? WinnerMemberId,
+	string? WinnerName,
+	DateTime CreatedAt,
+	DateTime? CompletedAt,
+	IReadOnlyCollection<TournamentParticipant> Participants,
+	IReadOnlyCollection<TournamentMatch> Matches,
+	IReadOnlyCollection<TournamentRound> Rounds);
 
 public record ChallengeListItem(
 	Guid Id,

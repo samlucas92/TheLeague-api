@@ -37,6 +37,7 @@ public class LeagueDataContext
 			Leagues = MongoEntitySet<League>.InMemory();
 			Members = MongoEntitySet<LeagueMember>.InMemory();
 			Challenges = MongoEntitySet<Challenge>.InMemory();
+			Tournaments = MongoEntitySet<Tournament>.InMemory();
 			Submissions = MongoEntitySet<PointSubmission>.InMemory();
 			Allocations = MongoEntitySet<PointAllocation>.InMemory();
 			AuditEntries = MongoEntitySet<LeagueAuditEntry>.InMemory();
@@ -52,6 +53,7 @@ public class LeagueDataContext
 		Leagues = MongoEntitySet<League>.FromCollection(database.GetCollection<League>("leagues"));
 		Members = MongoEntitySet<LeagueMember>.FromCollection(database.GetCollection<LeagueMember>("members"));
 		Challenges = MongoEntitySet<Challenge>.FromCollection(database.GetCollection<Challenge>("challenges"));
+		Tournaments = MongoEntitySet<Tournament>.FromCollection(database.GetCollection<Tournament>("tournaments"));
 		Submissions = MongoEntitySet<PointSubmission>.FromCollection(database.GetCollection<PointSubmission>("submissions"));
 		Allocations = MongoEntitySet<PointAllocation>.FromCollection(database.GetCollection<PointAllocation>("allocations"));
 		AuditEntries = MongoEntitySet<LeagueAuditEntry>.FromCollection(database.GetCollection<LeagueAuditEntry>("auditEntries"));
@@ -65,6 +67,7 @@ public class LeagueDataContext
 	public MongoEntitySet<League> Leagues { get; }
 	public MongoEntitySet<LeagueMember> Members { get; }
 	public MongoEntitySet<Challenge> Challenges { get; }
+	public MongoEntitySet<Tournament> Tournaments { get; }
 	public MongoEntitySet<PointSubmission> Submissions { get; }
 	public MongoEntitySet<PointAllocation> Allocations { get; }
 	public MongoEntitySet<LeagueAuditEntry> AuditEntries { get; }

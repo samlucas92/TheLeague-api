@@ -69,6 +69,16 @@ public interface IChallengeService
 	Task<(Challenge Challenge, PointAllocation Allocation)> FailAsync(Guid leagueId, Guid userId, Guid challengeId, Guid? targetMemberId = null, CancellationToken cancellationToken = default);
 }
 
+public interface ITournamentService
+{
+	Task<IReadOnlyCollection<TournamentListItem>> ListAsync(Guid leagueId, Guid userId, CancellationToken cancellationToken = default);
+	Task<IReadOnlyCollection<TournamentListItem>> ListPublicAsync(Guid leagueId, CancellationToken cancellationToken = default);
+	Task<TournamentListItem> CreateAsync(Guid leagueId, Guid userId, Tournament tournament, IReadOnlyCollection<Guid> participantMemberIds, CancellationToken cancellationToken = default);
+	Task<TournamentListItem> CompleteMatchAsync(Guid leagueId, Guid userId, Guid tournamentId, Guid matchId, Guid winnerMemberId, int? playerOneScore, int? playerTwoScore, CancellationToken cancellationToken = default);
+	Task<TournamentListItem> ScoreRoundAsync(Guid leagueId, Guid userId, Guid tournamentId, IReadOnlyDictionary<Guid, int> scores, CancellationToken cancellationToken = default);
+	Task DeleteAsync(Guid leagueId, Guid userId, Guid tournamentId, CancellationToken cancellationToken = default);
+}
+
 public interface IPointSubmissionService
 {
 	Task<PointSubmission> CreateAsync(Guid leagueId, Guid userId, Guid challengeId, Guid? leagueMemberId, int? requestedPoints, string publicReason, CancellationToken cancellationToken = default);

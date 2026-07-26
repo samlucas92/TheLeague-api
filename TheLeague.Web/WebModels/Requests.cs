@@ -36,6 +36,18 @@ public record UpdateChallengeRequest(
 	int PointsForFailure,
 	bool IsActive);
 public record ChallengeOutcomeRequest(Guid? TargetMemberId);
+public record CreateTournamentRequest(
+	string Name,
+	TournamentGameType GameType,
+	TournamentFormat? Format,
+	IReadOnlyCollection<Guid> ParticipantMemberIds,
+	int WinnerPoints,
+	int RunnerUpPoints,
+	int MatchWinPoints,
+	int EliminatePerRound,
+	Guid? ChallengeId);
+public record CompleteTournamentMatchRequest(Guid WinnerMemberId, int? PlayerOneScore, int? PlayerTwoScore);
+public record ScoreTournamentRoundRequest(IReadOnlyDictionary<Guid, int> Scores);
 public record CreateSubmissionRequest(Guid ChallengeId, Guid? LeagueMemberId, int? RequestedPoints, string PublicReason);
 public record ApproveSubmissionRequest(int? ApprovedPoints, string PublicReviewReason, string? AdminReviewNote);
 public record RejectSubmissionRequest(string PublicReviewReason, string? AdminReviewNote);
