@@ -127,6 +127,8 @@ public enum EmailMessageStatus
 public enum TournamentGameType
 {
 	Pool,
+	Darts301,
+	Darts501,
 	DartsHighestScore
 }
 

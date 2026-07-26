@@ -121,6 +121,27 @@ public class VerticalSliceTests
 	}
 
 	[Test]
+	public async Task Darts501TournamentIsStoredAsDarts()
+	{
+		var owner = await _users.RegisterAsync("Sam", "sam@example.com", "password123");
+		var playerTwo = await _users.RegisterAsync("Tom", "tom@example.com", "password123");
+		var league = await _leagues.CreateAsync(owner.Id, "Darts league", null, LeaguePresetType.Custom, LeagueJoinMode.OpenWithCode);
+		var ownerMember = (await _members.ListAsync(league.Id, owner.Id)).Single(member => member.UserId == owner.Id);
+		var tom = await _members.JoinAsync(playerTwo.Id, league.JoinCode, "Tom");
+
+		var darts = await _tournaments.CreateAsync(league.Id, owner.Id, new()
+		{
+			Name = "501 Darts Knockout",
+			GameType = TournamentGameType.Darts501,
+			Format = TournamentFormat.SingleEliminationBracket,
+			WinnerPoints = 20
+		}, [ownerMember.Id, tom.Id], CancellationToken.None);
+
+		Assert.That(darts.GameType, Is.EqualTo(TournamentGameType.Darts501));
+		Assert.That(darts.Format, Is.EqualTo(TournamentFormat.SingleEliminationBracket));
+	}
+
+	[Test]
 	public async Task DuplicateEmailIsRejected()
 	{
 		await _users.RegisterAsync("Sam", "sam@example.com", "password123");

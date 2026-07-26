@@ -196,9 +196,9 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 			throw new InvalidOperationException("Tournament name is required.");
 		}
 
-		if (tournament.GameType == TournamentGameType.Pool && tournament.Format != TournamentFormat.SingleEliminationBracket)
+		if ((tournament.GameType is TournamentGameType.Pool or TournamentGameType.Darts301 or TournamentGameType.Darts501) && tournament.Format != TournamentFormat.SingleEliminationBracket)
 		{
-			throw new InvalidOperationException("Pool tournaments currently use knockout brackets.");
+			throw new InvalidOperationException("This tournament type currently uses knockout brackets.");
 		}
 
 		if (tournament.GameType == TournamentGameType.DartsHighestScore && tournament.Format != TournamentFormat.RoundElimination)
