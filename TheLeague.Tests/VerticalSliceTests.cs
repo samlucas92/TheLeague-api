@@ -124,6 +124,21 @@ public class VerticalSliceTests
 	}
 
 	[Test]
+	public async Task SiteAdminCanListAndPromoteUsers()
+	{
+		var siteAdmin = await _users.RegisterAsync("Sam Lucas", "samlucas92@gmail.com", "password123");
+		var user = await _users.RegisterAsync("Tom", "tom@example.com", "password123");
+
+		var users = await _users.ListForSiteAdminAsync();
+		var promoted = await _users.SetSiteAdminAsync(siteAdmin.Id, user.Id, true);
+
+		Assert.That(users.Select(item => item.EmailAddress), Does.Contain("samlucas92@gmail.com"));
+		Assert.That(promoted.IsSiteAdmin, Is.True);
+		Assert.ThrowsAsync<InvalidOperationException>(() => _users.SetSiteAdminAsync(siteAdmin.Id, siteAdmin.Id, false));
+		Assert.ThrowsAsync<UnauthorizedAccessException>(() => _users.SetSiteAdminAsync(Guid.NewGuid(), user.Id, false));
+	}
+
+	[Test]
 	public async Task UserCanChangePassword()
 	{
 		var account = await _users.RegisterAsync("Sam", "sam@example.com", "password123");

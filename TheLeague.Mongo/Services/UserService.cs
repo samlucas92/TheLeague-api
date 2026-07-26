@@ -239,6 +239,50 @@ public class UserService(LeagueDataContext context) : IUserService
 		return account;
 	}
 
+	public Task<IReadOnlyCollection<SiteUserAdminItem>> ListForSiteAdminAsync(CancellationToken cancellationToken = default)
+	{
+		var users = context.Users.Values
+			.OrderByDescending(user => user.CreatedAt)
+			.Select(user => new SiteUserAdminItem(
+				user.Id,
+				user.Name,
+				user.EmailAddress,
+				user.IsEmailVerified,
+				user.IsSiteAdmin,
+				user.CreatedAt,
+				user.EmailVerifiedAt))
+			.ToArray();
+
+		return Task.FromResult<IReadOnlyCollection<SiteUserAdminItem>>(users);
+	}
+
+	public async Task<UserAccount> SetSiteAdminAsync(Guid actingUserId, Guid targetUserId, bool isSiteAdmin, CancellationToken cancellationToken = default)
+	{
+		if (!context.Users.TryGetValue(actingUserId, out var actingUser) || !actingUser.IsSiteAdmin)
+		{
+			throw new UnauthorizedAccessException("Site admin access is required.");
+		}
+
+		if (!context.Users.TryGetValue(targetUserId, out var targetUser))
+		{
+			throw new InvalidOperationException("User was not found.");
+		}
+
+		if (actingUserId == targetUserId && !isSiteAdmin)
+		{
+			throw new InvalidOperationException("You cannot remove your own site admin access.");
+		}
+
+		if (IsInitialSiteAdmin(targetUser.EmailAddress) && !isSiteAdmin)
+		{
+			throw new InvalidOperationException("The initial site admin cannot be demoted.");
+		}
+
+		targetUser.IsSiteAdmin = isSiteAdmin;
+		await context.Users.SaveAsync(targetUser, cancellationToken);
+		return targetUser;
+	}
+
 	internal static string NormalizeEmail(string emailAddress)
 	{
 		if (string.IsNullOrWhiteSpace(emailAddress) || !emailAddress.Contains('@'))

@@ -8,6 +8,7 @@ public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 public record ForgotPasswordRequest(string EmailAddress);
 public record ResetPasswordRequest(string Token, string NewPassword);
 public record VerifyEmailRequest(string Token);
+public record UpdateSiteAdminRequest(bool IsSiteAdmin);
 public record CreateLeagueRequest(string Name, string? Description, LeaguePresetType PresetType, LeagueJoinMode JoinMode);
 public record UpdateLeagueSettingsRequest(string Name, string? Description, LeagueJoinMode JoinMode, bool PublicViewEnabled);
 public record JoinPreviewRequest(string JoinCode);

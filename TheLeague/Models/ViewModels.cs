@@ -25,6 +25,15 @@ public record EmailAuditItem(
 	DateTime? SentAt,
 	DateTime? NextAttemptAt);
 
+public record SiteUserAdminItem(
+	Guid Id,
+	string Name,
+	string EmailAddress,
+	bool IsEmailVerified,
+	bool IsSiteAdmin,
+	DateTime CreatedAt,
+	DateTime? EmailVerifiedAt);
+
 public record LeagueSummary(
 	Guid Id,
 	string Name,
