@@ -134,11 +134,27 @@ public class VerticalSliceTests
 			Name = "501 Darts Knockout",
 			GameType = TournamentGameType.Darts501,
 			Format = TournamentFormat.SingleEliminationBracket,
+			Structure = TournamentStructure.LeagueAndKnockout,
 			WinnerPoints = 20
 		}, [ownerMember.Id, tom.Id], CancellationToken.None);
 
 		Assert.That(darts.GameType, Is.EqualTo(TournamentGameType.Darts501));
 		Assert.That(darts.Format, Is.EqualTo(TournamentFormat.SingleEliminationBracket));
+		Assert.That(darts.Structure, Is.EqualTo(TournamentStructure.LeagueAndKnockout));
+		Assert.That(darts.Matches, Has.All.Property(nameof(TournamentMatch.RoundNumber)).EqualTo(0));
+
+		var leagueMatch = darts.Matches.Single();
+		var afterLeague = await _tournaments.CompleteMatchAsync(
+			league.Id,
+			owner.Id,
+			darts.Id,
+			leagueMatch.Id,
+			ownerMember.Id,
+			4,
+			2,
+			CancellationToken.None);
+
+		Assert.That(afterLeague.Matches.Any(match => match.RoundNumber == 1), Is.True);
 	}
 
 	[Test]

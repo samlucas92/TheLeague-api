@@ -63,7 +63,9 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 		}
 		else if (tournament.Format == TournamentFormat.SingleEliminationBracket)
 		{
-			tournament.Matches = BuildOpeningBracket(tournament.Participants);
+			tournament.Matches = tournament.Structure == TournamentStructure.LeagueAndKnockout
+				? BuildLeagueStage(tournament.Participants)
+				: BuildOpeningBracket(tournament.Participants);
 		}
 		else
 		{
@@ -328,6 +330,29 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 		return matches;
 	}
 
+	private static List<TournamentMatch> BuildLeagueStage(IReadOnlyList<TournamentParticipant> participants)
+	{
+		var matches = new List<TournamentMatch>();
+		var matchNumber = 1;
+		for (var playerOneIndex = 0; playerOneIndex < participants.Count; playerOneIndex++)
+		{
+			for (var playerTwoIndex = playerOneIndex + 1; playerTwoIndex < participants.Count; playerTwoIndex++)
+			{
+				matches.Add(new TournamentMatch
+				{
+					Id = Guid.NewGuid(),
+					RoundNumber = 0,
+					MatchNumber = matchNumber++,
+					PlayerOneMemberId = participants[playerOneIndex].LeagueMemberId,
+					PlayerTwoMemberId = participants[playerTwoIndex].LeagueMemberId,
+					Status = TournamentMatchStatus.Ready
+				});
+			}
+		}
+
+		return matches;
+	}
+
 	private static TournamentRound BuildNextRound(IEnumerable<TournamentParticipant> participants, int roundNumber) => new()
 	{
 		RoundNumber = roundNumber,
@@ -336,6 +361,12 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 
 	private void AdvanceBracket(Tournament tournament, TournamentMatch completedMatch, Guid userId)
 	{
+		if (completedMatch.RoundNumber == 0)
+		{
+			AdvanceLeagueStage(tournament);
+			return;
+		}
+
 		var currentRoundMatches = tournament.Matches.Where(match => match.RoundNumber == completedMatch.RoundNumber).ToArray();
 		if (currentRoundMatches.Any(match => match.Status != TournamentMatchStatus.Completed))
 		{
@@ -381,6 +412,69 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 		}
 	}
 
+	private static void AdvanceLeagueStage(Tournament tournament)
+	{
+		var leagueMatches = tournament.Matches.Where(match => match.RoundNumber == 0).ToArray();
+		if (leagueMatches.Length == 0 ||
+			leagueMatches.Any(match => match.Status != TournamentMatchStatus.Completed) ||
+			tournament.Matches.Any(match => match.RoundNumber > 0))
+		{
+			return;
+		}
+
+		var standings = BuildLeagueStandings(tournament, leagueMatches);
+		tournament.Matches.AddRange(BuildOpeningBracket(standings));
+	}
+
+	private static List<TournamentParticipant> BuildLeagueStandings(Tournament tournament, IReadOnlyCollection<TournamentMatch> leagueMatches)
+	{
+		var standings = tournament.Participants.ToDictionary(
+			participant => participant.LeagueMemberId,
+			participant => new LeagueStanding(participant, 0, 0, 0, 0));
+
+		foreach (var match in leagueMatches.Where(match => match.Status == TournamentMatchStatus.Completed))
+		{
+			if (!match.PlayerOneMemberId.HasValue || !match.PlayerTwoMemberId.HasValue)
+			{
+				continue;
+			}
+
+			var playerOne = standings[match.PlayerOneMemberId.Value];
+			var playerTwo = standings[match.PlayerTwoMemberId.Value];
+			playerOne = playerOne with
+			{
+				Played = playerOne.Played + 1,
+				Wins = playerOne.Wins + (match.WinnerMemberId == match.PlayerOneMemberId ? 1 : 0),
+				PointsFor = playerOne.PointsFor + (match.PlayerOneScore ?? 0),
+				PointsAgainst = playerOne.PointsAgainst + (match.PlayerTwoScore ?? 0)
+			};
+			playerTwo = playerTwo with
+			{
+				Played = playerTwo.Played + 1,
+				Wins = playerTwo.Wins + (match.WinnerMemberId == match.PlayerTwoMemberId ? 1 : 0),
+				PointsFor = playerTwo.PointsFor + (match.PlayerTwoScore ?? 0),
+				PointsAgainst = playerTwo.PointsAgainst + (match.PlayerOneScore ?? 0)
+			};
+			standings[match.PlayerOneMemberId.Value] = playerOne;
+			standings[match.PlayerTwoMemberId.Value] = playerTwo;
+		}
+
+		return standings.Values
+			.OrderByDescending(standing => standing.Wins)
+			.ThenByDescending(standing => standing.PointsFor - standing.PointsAgainst)
+			.ThenByDescending(standing => standing.PointsFor)
+			.ThenBy(standing => standing.Participant.Seed)
+			.Select((standing, index) => new TournamentParticipant
+			{
+				LeagueMemberId = standing.Participant.LeagueMemberId,
+				DisplayName = standing.Participant.DisplayName,
+				Seed = index + 1,
+				IsEliminated = standing.Participant.IsEliminated,
+				TotalScore = standing.Participant.TotalScore
+			})
+			.ToList();
+	}
+
 	private void CompleteTournament(Tournament tournament, Guid winnerMemberId, Guid userId)
 	{
 		tournament.WinnerMemberId = winnerMemberId;
@@ -420,6 +514,8 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 		};
 		context.Allocations[allocation.Id] = allocation;
 	}
+
+	private sealed record LeagueStanding(TournamentParticipant Participant, int Played, int Wins, int PointsFor, int PointsAgainst);
 
 	private void UpdatePubGolfTotals(Tournament tournament, Guid userId)
 	{
