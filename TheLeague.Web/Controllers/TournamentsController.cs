@@ -34,6 +34,13 @@ public class TournamentsController(ITournamentService tournamentService) : Contr
 			Structure = request.Structure ?? TournamentStructure.KnockoutOnly,
 			MatchRule = request.MatchRule ?? TournamentMatchRule.FirstTo,
 			FramesOrLegs = request.FramesOrLegs ?? 5,
+			GroupSize = request.GroupSize ?? 4,
+			QualifiersPerGroup = request.QualifiersPerGroup ?? 2,
+			RoundRules = request.RoundRules?.Select(rule => new TournamentRoundRule
+			{
+				RoundNumber = rule.RoundNumber,
+				FramesOrLegs = rule.FramesOrLegs
+			}).ToList() ?? [],
 			PoolRules = request.PoolRules?.Where(rule => !string.IsNullOrWhiteSpace(rule)).Select(rule => rule.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? [],
 			BreakRule = request.BreakRule ?? PoolBreakRule.NormalBreak,
 			CallShotRequired = request.CallShotRequired,

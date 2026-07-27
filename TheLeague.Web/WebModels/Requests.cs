@@ -43,6 +43,9 @@ public record CreateTournamentRequest(
 	TournamentStructure? Structure,
 	TournamentMatchRule? MatchRule,
 	int? FramesOrLegs,
+	int? GroupSize,
+	int? QualifiersPerGroup,
+	IReadOnlyCollection<TournamentRoundRuleRequest>? RoundRules,
 	IReadOnlyCollection<string>? PoolRules,
 	PoolBreakRule? BreakRule,
 	bool CallShotRequired,
@@ -60,6 +63,7 @@ public record CreateTournamentRequest(
 	int EliminatePerRound,
 	Guid? ChallengeId,
 	IReadOnlyCollection<PubGolfHoleRequest>? PubGolfHoles);
+public record TournamentRoundRuleRequest(int RoundNumber, int FramesOrLegs);
 public record CompleteTournamentMatchRequest(Guid WinnerMemberId, int? PlayerOneScore, int? PlayerTwoScore);
 public record ScoreTournamentRoundRequest(IReadOnlyDictionary<Guid, int> Scores);
 public record PubGolfHoleRequest(string Venue, string Drink, int Par, string? HoleRule, string? Hazard, int? Penalty, string? Notes);

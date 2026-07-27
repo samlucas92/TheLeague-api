@@ -14,6 +14,9 @@ public class Tournament
 	public TournamentStructure Structure { get; set; } = TournamentStructure.KnockoutOnly;
 	public TournamentMatchRule MatchRule { get; set; } = TournamentMatchRule.FirstTo;
 	public int FramesOrLegs { get; set; } = 5;
+	public int GroupSize { get; set; } = 4;
+	public int QualifiersPerGroup { get; set; } = 2;
+	public List<TournamentRoundRule> RoundRules { get; set; } = [];
 	public List<string> PoolRules { get; set; } = [];
 	public PoolBreakRule BreakRule { get; set; } = PoolBreakRule.NormalBreak;
 	public bool CallShotRequired { get; set; }
@@ -54,13 +57,21 @@ public class TournamentMatch
 	public Guid Id { get; set; }
 	public int RoundNumber { get; set; }
 	public int MatchNumber { get; set; }
+	public string? GroupName { get; set; }
 	public Guid? PlayerOneMemberId { get; set; }
 	public Guid? PlayerTwoMemberId { get; set; }
+	public int? FramesOrLegs { get; set; }
 	public int? PlayerOneScore { get; set; }
 	public int? PlayerTwoScore { get; set; }
 	public Guid? WinnerMemberId { get; set; }
 	public TournamentMatchStatus Status { get; set; }
 	public DateTime? CompletedAt { get; set; }
+}
+
+public class TournamentRoundRule
+{
+	public int RoundNumber { get; set; }
+	public int FramesOrLegs { get; set; }
 }
 
 public class TournamentRound

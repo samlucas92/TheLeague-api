@@ -135,6 +135,9 @@ public class VerticalSliceTests
 			GameType = TournamentGameType.Darts501,
 			Format = TournamentFormat.SingleEliminationBracket,
 			Structure = TournamentStructure.LeagueAndKnockout,
+			GroupSize = 4,
+			QualifiersPerGroup = 2,
+			RoundRules = [new TournamentRoundRule { RoundNumber = -1, FramesOrLegs = 7 }],
 			WinnerPoints = 20
 		}, [ownerMember.Id, tom.Id], CancellationToken.None);
 
@@ -142,6 +145,7 @@ public class VerticalSliceTests
 		Assert.That(darts.Format, Is.EqualTo(TournamentFormat.SingleEliminationBracket));
 		Assert.That(darts.Structure, Is.EqualTo(TournamentStructure.LeagueAndKnockout));
 		Assert.That(darts.Matches, Has.All.Property(nameof(TournamentMatch.RoundNumber)).EqualTo(0));
+		Assert.That(darts.Matches, Has.All.Property(nameof(TournamentMatch.GroupName)).EqualTo("Group A"));
 
 		var leagueMatch = darts.Matches.Single();
 		var afterLeague = await _tournaments.CompleteMatchAsync(
@@ -155,6 +159,7 @@ public class VerticalSliceTests
 			CancellationToken.None);
 
 		Assert.That(afterLeague.Matches.Any(match => match.RoundNumber == 1), Is.True);
+		Assert.That(afterLeague.Matches.Single(match => match.RoundNumber == 1).FramesOrLegs, Is.EqualTo(7));
 	}
 
 	[Test]

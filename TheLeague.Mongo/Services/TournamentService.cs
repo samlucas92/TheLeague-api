@@ -39,6 +39,14 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 		tournament.Status = TournamentStatus.Active;
 		tournament.Participants = ShuffleParticipants(participants);
 		tournament.FramesOrLegs = Math.Max(1, tournament.FramesOrLegs);
+		tournament.GroupSize = Math.Max(2, tournament.GroupSize);
+		tournament.QualifiersPerGroup = Math.Clamp(tournament.QualifiersPerGroup, 1, tournament.GroupSize);
+		tournament.RoundRules = tournament.RoundRules
+			.Where(rule => rule.RoundNumber != 0 && rule.FramesOrLegs > 0)
+			.GroupBy(rule => rule.RoundNumber)
+			.Select(group => group.Last())
+			.OrderBy(rule => rule.RoundNumber)
+			.ToList();
 		tournament.MinimumPlayers = Math.Max(2, tournament.MinimumPlayers);
 		tournament.EliminatePerRound = Math.Max(1, tournament.EliminatePerRound);
 		tournament.StartScore ??= tournament.GameType switch
@@ -64,8 +72,8 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 		else if (tournament.Format == TournamentFormat.SingleEliminationBracket)
 		{
 			tournament.Matches = tournament.Structure == TournamentStructure.LeagueAndKnockout
-				? BuildLeagueStage(tournament.Participants)
-				: BuildOpeningBracket(tournament.Participants);
+				? BuildLeagueStage(tournament, tournament.Participants)
+				: BuildOpeningBracket(tournament, tournament.Participants);
 		}
 		else
 		{
@@ -306,10 +314,11 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 			})
 			.ToList();
 
-	private static List<TournamentMatch> BuildOpeningBracket(IReadOnlyList<TournamentParticipant> participants)
+	private static List<TournamentMatch> BuildOpeningBracket(Tournament tournament, IReadOnlyList<TournamentParticipant> participants)
 	{
 		var matches = new List<TournamentMatch>();
 		var matchNumber = 1;
+		var roundMatchCount = (int)Math.Ceiling(participants.Count / 2m);
 		for (var i = 0; i < participants.Count; i += 2)
 		{
 			var playerOne = participants[i].LeagueMemberId;
@@ -321,6 +330,7 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 				MatchNumber = matchNumber++,
 				PlayerOneMemberId = playerOne,
 				PlayerTwoMemberId = playerTwo,
+				FramesOrLegs = GetFramesOrLegsForRound(tournament, 1, roundMatchCount),
 				WinnerMemberId = playerTwo is null ? playerOne : null,
 				Status = playerTwo is null ? TournamentMatchStatus.Completed : TournamentMatchStatus.Ready,
 				CompletedAt = playerTwo is null ? DateTime.UtcNow : null
@@ -330,27 +340,103 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 		return matches;
 	}
 
-	private static List<TournamentMatch> BuildLeagueStage(IReadOnlyList<TournamentParticipant> participants)
+	private static List<TournamentMatch> BuildLeagueStage(Tournament tournament, IReadOnlyList<TournamentParticipant> participants)
 	{
 		var matches = new List<TournamentMatch>();
 		var matchNumber = 1;
-		for (var playerOneIndex = 0; playerOneIndex < participants.Count; playerOneIndex++)
-		{
-			for (var playerTwoIndex = playerOneIndex + 1; playerTwoIndex < participants.Count; playerTwoIndex++)
+		var groups = BuildBalancedGroups(participants, tournament.GroupSize);
+		var groupFixtures = groups
+			.Select((group, groupIndex) => new
 			{
-				matches.Add(new TournamentMatch
+				GroupName = $"Group {(char)('A' + groupIndex)}",
+				Rounds = BuildRoundRobinRounds(group)
+			})
+			.ToArray();
+		var maxFixtureRounds = groupFixtures.Max(group => group.Rounds.Count);
+
+		for (var fixtureRoundIndex = 0; fixtureRoundIndex < maxFixtureRounds; fixtureRoundIndex++)
+		{
+			foreach (var groupFixture in groupFixtures)
+			{
+				if (fixtureRoundIndex >= groupFixture.Rounds.Count)
 				{
-					Id = Guid.NewGuid(),
-					RoundNumber = 0,
-					MatchNumber = matchNumber++,
-					PlayerOneMemberId = participants[playerOneIndex].LeagueMemberId,
-					PlayerTwoMemberId = participants[playerTwoIndex].LeagueMemberId,
-					Status = TournamentMatchStatus.Ready
-				});
+					continue;
+				}
+
+				foreach (var (playerOne, playerTwo) in groupFixture.Rounds[fixtureRoundIndex])
+				{
+					matches.Add(new TournamentMatch
+					{
+						Id = Guid.NewGuid(),
+						RoundNumber = 0,
+						MatchNumber = matchNumber++,
+						GroupName = groupFixture.GroupName,
+						PlayerOneMemberId = playerOne.LeagueMemberId,
+						PlayerTwoMemberId = playerTwo.LeagueMemberId,
+						FramesOrLegs = tournament.FramesOrLegs,
+						Status = TournamentMatchStatus.Ready
+					});
+				}
 			}
 		}
 
 		return matches;
+	}
+
+	private static List<TournamentParticipant[]> BuildBalancedGroups(IReadOnlyList<TournamentParticipant> participants, int groupSize)
+	{
+		var groupCount = Math.Max(1, (int)Math.Ceiling(participants.Count / (decimal)Math.Max(2, groupSize)));
+		var groups = Enumerable.Range(0, groupCount).Select(_ => new List<TournamentParticipant>()).ToArray();
+		for (var groupIndex = 0; groupIndex < groups.Length; groupIndex++)
+		{
+			// Seed players into balanced groups. The forward/backward pass spreads stronger seeds
+			// and avoids one undersized final group after randomisation.
+			var group = groups[groupIndex];
+			for (var participantIndex = groupIndex; participantIndex < participants.Count; participantIndex += groupCount * 2)
+			{
+				group.Add(participants[participantIndex]);
+			}
+
+			for (var participantIndex = (groupCount * 2) - groupIndex - 1; participantIndex < participants.Count; participantIndex += groupCount * 2)
+			{
+				group.Add(participants[participantIndex]);
+			}
+		}
+
+		return groups.Select(group => group.ToArray()).ToList();
+	}
+
+	private static List<List<(TournamentParticipant PlayerOne, TournamentParticipant PlayerTwo)>> BuildRoundRobinRounds(IReadOnlyList<TournamentParticipant> group)
+	{
+		var players = group.Select<TournamentParticipant, TournamentParticipant?>(participant => participant).ToList();
+		if (players.Count % 2 == 1)
+		{
+			players.Add(null);
+		}
+
+		var rounds = new List<List<(TournamentParticipant PlayerOne, TournamentParticipant PlayerTwo)>>();
+		var roundCount = players.Count - 1;
+		var half = players.Count / 2;
+		for (var roundIndex = 0; roundIndex < roundCount; roundIndex++)
+		{
+			var round = new List<(TournamentParticipant PlayerOne, TournamentParticipant PlayerTwo)>();
+			for (var pairIndex = 0; pairIndex < half; pairIndex++)
+			{
+				var left = players[pairIndex];
+				var right = players[players.Count - 1 - pairIndex];
+				if (left is not null && right is not null)
+				{
+					round.Add(roundIndex % 2 == 0 ? (left, right) : (right, left));
+				}
+			}
+
+			rounds.Add(round);
+			var rotated = players[1];
+			players.RemoveAt(1);
+			players.Add(rotated);
+		}
+
+		return rounds;
 	}
 
 	private static TournamentRound BuildNextRound(IEnumerable<TournamentParticipant> participants, int roundNumber) => new()
@@ -394,6 +480,7 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 		}
 
 		var matchNumber = 1;
+		var nextRoundMatchCount = (int)Math.Ceiling(winners.Length / 2m);
 		for (var i = 0; i < winners.Length; i += 2)
 		{
 			var playerOne = winners[i];
@@ -405,6 +492,7 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 				MatchNumber = matchNumber++,
 				PlayerOneMemberId = playerOne,
 				PlayerTwoMemberId = playerTwo,
+				FramesOrLegs = GetFramesOrLegsForRound(tournament, nextRoundNumber, nextRoundMatchCount),
 				WinnerMemberId = playerTwo is null ? playerOne : null,
 				Status = playerTwo is null ? TournamentMatchStatus.Completed : TournamentMatchStatus.Ready,
 				CompletedAt = playerTwo is null ? DateTime.UtcNow : null
@@ -422,15 +510,26 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 			return;
 		}
 
-		var standings = BuildLeagueStandings(tournament, leagueMatches);
-		tournament.Matches.AddRange(BuildOpeningBracket(standings));
+		var standings = BuildLeagueStandings(tournament, leagueMatches)
+			.GroupBy(standing => standing.GroupName)
+			.SelectMany(group => group.Take(tournament.QualifiersPerGroup))
+			.Select((standing, index) => new TournamentParticipant
+			{
+				LeagueMemberId = standing.Participant.LeagueMemberId,
+				DisplayName = standing.Participant.DisplayName,
+				Seed = index + 1,
+				IsEliminated = standing.Participant.IsEliminated,
+				TotalScore = standing.Participant.TotalScore
+			})
+			.ToList();
+		tournament.Matches.AddRange(BuildOpeningBracket(tournament, standings));
 	}
 
-	private static List<TournamentParticipant> BuildLeagueStandings(Tournament tournament, IReadOnlyCollection<TournamentMatch> leagueMatches)
+	private static List<LeagueStanding> BuildLeagueStandings(Tournament tournament, IReadOnlyCollection<TournamentMatch> leagueMatches)
 	{
 		var standings = tournament.Participants.ToDictionary(
 			participant => participant.LeagueMemberId,
-			participant => new LeagueStanding(participant, 0, 0, 0, 0));
+			participant => new LeagueStanding(participant, string.Empty, 0, 0, 0, 0));
 
 		foreach (var match in leagueMatches.Where(match => match.Status == TournamentMatchStatus.Completed))
 		{
@@ -443,6 +542,7 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 			var playerTwo = standings[match.PlayerTwoMemberId.Value];
 			playerOne = playerOne with
 			{
+				GroupName = match.GroupName ?? string.Empty,
 				Played = playerOne.Played + 1,
 				Wins = playerOne.Wins + (match.WinnerMemberId == match.PlayerOneMemberId ? 1 : 0),
 				PointsFor = playerOne.PointsFor + (match.PlayerOneScore ?? 0),
@@ -450,6 +550,7 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 			};
 			playerTwo = playerTwo with
 			{
+				GroupName = match.GroupName ?? string.Empty,
 				Played = playerTwo.Played + 1,
 				Wins = playerTwo.Wins + (match.WinnerMemberId == match.PlayerTwoMemberId ? 1 : 0),
 				PointsFor = playerTwo.PointsFor + (match.PlayerTwoScore ?? 0),
@@ -460,19 +561,28 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 		}
 
 		return standings.Values
+			.GroupBy(standing => standing.GroupName)
+			.SelectMany(group => group
 			.OrderByDescending(standing => standing.Wins)
 			.ThenByDescending(standing => standing.PointsFor - standing.PointsAgainst)
 			.ThenByDescending(standing => standing.PointsFor)
-			.ThenBy(standing => standing.Participant.Seed)
-			.Select((standing, index) => new TournamentParticipant
-			{
-				LeagueMemberId = standing.Participant.LeagueMemberId,
-				DisplayName = standing.Participant.DisplayName,
-				Seed = index + 1,
-				IsEliminated = standing.Participant.IsEliminated,
-				TotalScore = standing.Participant.TotalScore
-			})
+			.ThenBy(standing => standing.Participant.Seed))
 			.ToList();
+	}
+
+	private static int GetFramesOrLegsForRound(Tournament tournament, int roundNumber, int matchCount)
+	{
+		var stageRule = matchCount switch
+		{
+			1 => tournament.RoundRules.LastOrDefault(rule => rule.RoundNumber == -1),
+			2 => tournament.RoundRules.LastOrDefault(rule => rule.RoundNumber == -2),
+			4 => tournament.RoundRules.LastOrDefault(rule => rule.RoundNumber == -3),
+			_ => null
+		};
+
+		return stageRule?.FramesOrLegs
+			?? tournament.RoundRules.LastOrDefault(rule => rule.RoundNumber == roundNumber)?.FramesOrLegs
+			?? tournament.FramesOrLegs;
 	}
 
 	private void CompleteTournament(Tournament tournament, Guid winnerMemberId, Guid userId)
@@ -515,7 +625,7 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 		context.Allocations[allocation.Id] = allocation;
 	}
 
-	private sealed record LeagueStanding(TournamentParticipant Participant, int Played, int Wins, int PointsFor, int PointsAgainst);
+	private sealed record LeagueStanding(TournamentParticipant Participant, string GroupName, int Played, int Wins, int PointsFor, int PointsAgainst);
 
 	private void UpdatePubGolfTotals(Tournament tournament, Guid userId)
 	{
@@ -553,6 +663,9 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 			tournament.Structure,
 			tournament.MatchRule,
 			tournament.FramesOrLegs,
+			tournament.GroupSize,
+			tournament.QualifiersPerGroup,
+			tournament.RoundRules,
 			tournament.PoolRules,
 			tournament.BreakRule,
 			tournament.CallShotRequired,
