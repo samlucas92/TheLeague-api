@@ -129,13 +129,15 @@ public enum TournamentGameType
 	Pool,
 	Darts301,
 	Darts501,
-	DartsHighestScore
+	DartsHighestScore,
+	PubGolf
 }
 
 public enum TournamentFormat
 {
 	SingleEliminationBracket,
-	RoundElimination
+	RoundElimination,
+	PubGolfCourse
 }
 
 public enum TournamentStructure

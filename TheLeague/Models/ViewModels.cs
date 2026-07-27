@@ -114,7 +114,9 @@ public record TournamentListItem(
 	DateTime? CompletedAt,
 	IReadOnlyCollection<TournamentParticipant> Participants,
 	IReadOnlyCollection<TournamentMatch> Matches,
-	IReadOnlyCollection<TournamentRound> Rounds);
+	IReadOnlyCollection<TournamentRound> Rounds,
+	IReadOnlyCollection<PubGolfHole> PubGolfHoles,
+	IReadOnlyCollection<PubGolfScore> PubGolfScores);
 
 public record ChallengeListItem(
 	Guid Id,

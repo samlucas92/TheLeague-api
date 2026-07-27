@@ -142,6 +142,53 @@ public class VerticalSliceTests
 	}
 
 	[Test]
+	public async Task PubGolfUsesCourseScorecardsAndLowestScoreWins()
+	{
+		var owner = await _users.RegisterAsync("Sam", "sam@example.com", "password123");
+		var playerTwo = await _users.RegisterAsync("Tom", "tom@example.com", "password123");
+		var league = await _leagues.CreateAsync(owner.Id, "Pub golf league", null, LeaguePresetType.Custom, LeagueJoinMode.OpenWithCode);
+		var ownerMember = (await _members.ListAsync(league.Id, owner.Id)).Single(member => member.UserId == owner.Id);
+		var tom = await _members.JoinAsync(playerTwo.Id, league.JoinCode, "Tom");
+
+		var pubGolf = await _tournaments.CreateAsync(league.Id, owner.Id, new()
+		{
+			Name = "Saturday Night Pub Golf",
+			GameType = TournamentGameType.PubGolf,
+			Format = TournamentFormat.PubGolfCourse,
+			WinnerPoints = 12,
+			PubGolfHoles =
+			[
+				new PubGolfHole { Venue = "Old Crown", Drink = "Pint of Lager", Par = 4 },
+				new PubGolfHole { Venue = "The Griffin", Drink = "Bottle of cider", Par = 3, Hazard = "Water Hazard", Penalty = 2 }
+			]
+		}, [ownerMember.Id, tom.Id], CancellationToken.None);
+
+		Assert.That(pubGolf.Matches, Is.Empty);
+		Assert.That(pubGolf.Rounds, Is.Empty);
+		Assert.That(pubGolf.PubGolfHoles.Count, Is.EqualTo(2));
+
+		pubGolf = await _tournaments.ScorePubGolfHoleAsync(league.Id, owner.Id, pubGolf.Id, pubGolf.PubGolfHoles.First().Id, new Dictionary<Guid, int?>
+		{
+			[ownerMember.Id] = 3,
+			[tom.Id] = 5
+		});
+
+		Assert.That(pubGolf.Status, Is.EqualTo(TournamentStatus.Active));
+
+		var completed = await _tournaments.ScorePubGolfHoleAsync(league.Id, owner.Id, pubGolf.Id, pubGolf.PubGolfHoles.Last().Id, new Dictionary<Guid, int?>
+		{
+			[ownerMember.Id] = 4,
+			[tom.Id] = 3
+		});
+
+		Assert.That(completed.Status, Is.EqualTo(TournamentStatus.Completed));
+		Assert.That(completed.WinnerMemberId, Is.EqualTo(ownerMember.Id));
+		Assert.That(completed.Participants.Single(participant => participant.LeagueMemberId == ownerMember.Id).TotalScore, Is.EqualTo(7));
+		var leaderboard = await _leaderboard.GetAsync(league.Id, owner.Id);
+		Assert.That(leaderboard.Single(row => row.LeagueMemberId == ownerMember.Id).ApprovedPoints, Is.EqualTo(12));
+	}
+
+	[Test]
 	public async Task DuplicateEmailIsRejected()
 	{
 		await _users.RegisterAsync("Sam", "sam@example.com", "password123");

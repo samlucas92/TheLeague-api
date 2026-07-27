@@ -58,9 +58,12 @@ public record CreateTournamentRequest(
 	int RunnerUpPoints,
 	int MatchWinPoints,
 	int EliminatePerRound,
-	Guid? ChallengeId);
+	Guid? ChallengeId,
+	IReadOnlyCollection<PubGolfHoleRequest>? PubGolfHoles);
 public record CompleteTournamentMatchRequest(Guid WinnerMemberId, int? PlayerOneScore, int? PlayerTwoScore);
 public record ScoreTournamentRoundRequest(IReadOnlyDictionary<Guid, int> Scores);
+public record PubGolfHoleRequest(string Venue, string Drink, int Par, string? HoleRule, string? Hazard, int? Penalty, string? Notes);
+public record ScorePubGolfHoleRequest(Guid HoleId, IReadOnlyDictionary<Guid, int?> Scores);
 public record CreateSubmissionRequest(Guid ChallengeId, Guid? LeagueMemberId, int? RequestedPoints, string PublicReason);
 public record ApproveSubmissionRequest(int? ApprovedPoints, string PublicReviewReason, string? AdminReviewNote);
 public record RejectSubmissionRequest(string PublicReviewReason, string? AdminReviewNote);

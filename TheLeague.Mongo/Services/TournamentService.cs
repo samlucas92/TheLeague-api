@@ -49,7 +49,19 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 		};
 		tournament.CreatedAt = DateTime.UtcNow;
 
-		if (tournament.Format == TournamentFormat.SingleEliminationBracket)
+		if (tournament.GameType == TournamentGameType.PubGolf)
+		{
+			tournament.Format = TournamentFormat.PubGolfCourse;
+			tournament.HolesOrDefault();
+			tournament.PubGolfScores = tournament.Participants
+				.SelectMany(participant => tournament.PubGolfHoles.Select(hole => new PubGolfScore
+				{
+					LeagueMemberId = participant.LeagueMemberId,
+					HoleId = hole.Id
+				}))
+				.ToList();
+		}
+		else if (tournament.Format == TournamentFormat.SingleEliminationBracket)
 		{
 			tournament.Matches = BuildOpeningBracket(tournament.Participants);
 		}
@@ -60,6 +72,41 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 
 		context.Tournaments[tournament.Id] = tournament;
 		await auditService.RecordAsync(leagueId, userId, LeagueAuditAction.TournamentCreated, "Tournament", tournament.Id, $"Created tournament {tournament.Name}.", cancellationToken);
+		return ToListItem(tournament);
+	}
+
+	public async Task<TournamentListItem> ScorePubGolfHoleAsync(Guid leagueId, Guid userId, Guid tournamentId, Guid holeId, IReadOnlyDictionary<Guid, int?> scores, CancellationToken cancellationToken = default)
+	{
+		await authorisationService.GetRequiredAdminMembershipAsync(leagueId, userId, cancellationToken);
+		var tournament = GetTournament(leagueId, tournamentId);
+		if (tournament.GameType != TournamentGameType.PubGolf)
+		{
+			throw new InvalidOperationException("This tournament does not use pub golf scorecards.");
+		}
+
+		var hole = tournament.PubGolfHoles.SingleOrDefault(candidate => candidate.Id == holeId)
+			?? throw new InvalidOperationException("Pub golf hole was not found.");
+
+		foreach (var participant in tournament.Participants)
+		{
+			if (!scores.TryGetValue(participant.LeagueMemberId, out var score))
+			{
+				continue;
+			}
+
+			if (score is < 1 or > 20)
+			{
+				throw new InvalidOperationException("Pub golf scores must be between 1 and 20.");
+			}
+
+			var scorecardEntry = tournament.PubGolfScores.Single(entry => entry.LeagueMemberId == participant.LeagueMemberId && entry.HoleId == hole.Id);
+			scorecardEntry.Score = score;
+		}
+
+		UpdatePubGolfTotals(tournament, userId);
+		tournament.UpdatedAt = DateTime.UtcNow;
+		await context.Tournaments.SaveAsync(tournament, cancellationToken);
+		await auditService.RecordAsync(leagueId, userId, LeagueAuditAction.TournamentRoundScored, "Tournament", tournament.Id, $"Scored hole {hole.HoleNumber} in {tournament.Name}.", cancellationToken);
 		return ToListItem(tournament);
 	}
 
@@ -215,6 +262,24 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 			throw new InvalidOperationException("Highest-score darts tournaments use round elimination.");
 		}
 
+		if (tournament.GameType == TournamentGameType.PubGolf)
+		{
+			if (tournament.Format != TournamentFormat.PubGolfCourse)
+			{
+				throw new InvalidOperationException("Pub golf tournaments use course scorecards.");
+			}
+
+			if (tournament.PubGolfHoles.Count == 0)
+			{
+				throw new InvalidOperationException("Pub golf needs at least one hole.");
+			}
+
+			if (tournament.PubGolfHoles.Any(hole => string.IsNullOrWhiteSpace(hole.Venue) || string.IsNullOrWhiteSpace(hole.Drink) || hole.Par < 1))
+			{
+				throw new InvalidOperationException("Each pub golf hole needs a venue, drink and par.");
+			}
+		}
+
 		if (tournament.EliminatePerRound >= participantCount && tournament.Format == TournamentFormat.RoundElimination)
 		{
 			throw new InvalidOperationException("The elimination count must leave at least one player each round.");
@@ -356,6 +421,28 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 		context.Allocations[allocation.Id] = allocation;
 	}
 
+	private void UpdatePubGolfTotals(Tournament tournament, Guid userId)
+	{
+		foreach (var participant in tournament.Participants)
+		{
+			participant.TotalScore = tournament.PubGolfScores
+				.Where(score => score.LeagueMemberId == participant.LeagueMemberId && score.Score.HasValue)
+				.Sum(score => score.Score!.Value);
+		}
+
+		var allScoresEntered = tournament.PubGolfScores.Count != 0 && tournament.PubGolfScores.All(score => score.Score.HasValue);
+		if (!allScoresEntered)
+		{
+			return;
+		}
+
+		var winner = tournament.Participants
+			.OrderBy(participant => participant.TotalScore)
+			.ThenBy(participant => participant.Seed)
+			.First();
+		CompleteTournament(tournament, winner.LeagueMemberId, userId);
+	}
+
 	private TournamentListItem ToListItem(Tournament tournament)
 	{
 		var winnerName = tournament.WinnerMemberId.HasValue
@@ -393,6 +480,38 @@ public class TournamentService(LeagueDataContext context, ILeagueAuthorisationSe
 			tournament.CompletedAt,
 			tournament.Participants,
 			tournament.Matches,
-			tournament.Rounds);
+			tournament.Rounds,
+			tournament.PubGolfHoles,
+			tournament.PubGolfScores);
+	}
+}
+
+file static class PubGolfTournamentDefaults
+{
+	public static void HolesOrDefault(this Tournament tournament)
+	{
+		if (tournament.PubGolfHoles.Count == 0)
+		{
+			tournament.PubGolfHoles = Enumerable.Range(1, 9).Select(index => new PubGolfHole
+			{
+				HoleNumber = index,
+				Venue = $"Hole {index}",
+				Drink = "House drink",
+				Par = 3
+			}).ToList();
+		}
+
+		tournament.PubGolfHoles = tournament.PubGolfHoles
+			.OrderBy(hole => hole.HoleNumber)
+			.Select((hole, index) =>
+			{
+				hole.HoleNumber = index + 1;
+				hole.Id = hole.Id == Guid.Empty ? Guid.NewGuid() : hole.Id;
+				hole.Venue = hole.Venue.Trim();
+				hole.Drink = hole.Drink.Trim();
+				hole.Par = Math.Max(1, hole.Par);
+				return hole;
+			})
+			.ToList();
 	}
 }

@@ -76,6 +76,7 @@ public interface ITournamentService
 	Task<TournamentListItem> CreateAsync(Guid leagueId, Guid userId, Tournament tournament, IReadOnlyCollection<Guid> participantMemberIds, CancellationToken cancellationToken = default);
 	Task<TournamentListItem> CompleteMatchAsync(Guid leagueId, Guid userId, Guid tournamentId, Guid matchId, Guid winnerMemberId, int? playerOneScore, int? playerTwoScore, CancellationToken cancellationToken = default);
 	Task<TournamentListItem> ScoreRoundAsync(Guid leagueId, Guid userId, Guid tournamentId, IReadOnlyDictionary<Guid, int> scores, CancellationToken cancellationToken = default);
+	Task<TournamentListItem> ScorePubGolfHoleAsync(Guid leagueId, Guid userId, Guid tournamentId, Guid holeId, IReadOnlyDictionary<Guid, int?> scores, CancellationToken cancellationToken = default);
 	Task DeleteAsync(Guid leagueId, Guid userId, Guid tournamentId, CancellationToken cancellationToken = default);
 }
 

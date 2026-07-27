@@ -28,6 +28,8 @@ public class Tournament
 	public List<TournamentParticipant> Participants { get; set; } = [];
 	public List<TournamentMatch> Matches { get; set; } = [];
 	public List<TournamentRound> Rounds { get; set; } = [];
+	public List<PubGolfHole> PubGolfHoles { get; set; } = [];
+	public List<PubGolfScore> PubGolfScores { get; set; } = [];
 	public int WinnerPoints { get; set; }
 	public int RunnerUpPoints { get; set; }
 	public int MatchWinPoints { get; set; }
@@ -74,5 +76,25 @@ public class TournamentRound
 public class TournamentRoundScore
 {
 	public Guid LeagueMemberId { get; set; }
+	public int? Score { get; set; }
+}
+
+public class PubGolfHole
+{
+	public Guid Id { get; set; } = Guid.NewGuid();
+	public int HoleNumber { get; set; }
+	public string Venue { get; set; } = string.Empty;
+	public string Drink { get; set; } = string.Empty;
+	public int Par { get; set; } = 3;
+	public string? HoleRule { get; set; }
+	public string? Hazard { get; set; }
+	public int? Penalty { get; set; }
+	public string? Notes { get; set; }
+}
+
+public class PubGolfScore
+{
+	public Guid LeagueMemberId { get; set; }
+	public Guid HoleId { get; set; }
 	public int? Score { get; set; }
 }

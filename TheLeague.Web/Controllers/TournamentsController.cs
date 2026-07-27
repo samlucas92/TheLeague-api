@@ -20,7 +20,9 @@ public class TournamentsController(ITournamentService tournamentService) : Contr
 	[HttpPost]
 	public async Task<IActionResult> Create(Guid leagueId, CreateTournamentRequest request, CancellationToken cancellationToken)
 	{
-		var format = request.Format ?? (request.GameType == TournamentGameType.DartsHighestScore
+		var format = request.Format ?? (request.GameType == TournamentGameType.PubGolf
+			? TournamentFormat.PubGolfCourse
+			: request.GameType == TournamentGameType.DartsHighestScore
 			? TournamentFormat.RoundElimination
 			: TournamentFormat.SingleEliminationBracket);
 
@@ -46,7 +48,19 @@ public class TournamentsController(ITournamentService tournamentService) : Contr
 			RunnerUpPoints = request.RunnerUpPoints,
 			MatchWinPoints = request.MatchWinPoints,
 			EliminatePerRound = request.EliminatePerRound,
-			ChallengeId = request.ChallengeId
+			ChallengeId = request.ChallengeId,
+			PubGolfHoles = request.PubGolfHoles?.Select((hole, index) => new PubGolfHole
+			{
+				Id = Guid.NewGuid(),
+				HoleNumber = index + 1,
+				Venue = hole.Venue.Trim(),
+				Drink = hole.Drink.Trim(),
+				Par = hole.Par,
+				HoleRule = string.IsNullOrWhiteSpace(hole.HoleRule) ? null : hole.HoleRule.Trim(),
+				Hazard = string.IsNullOrWhiteSpace(hole.Hazard) ? null : hole.Hazard.Trim(),
+				Penalty = hole.Penalty,
+				Notes = string.IsNullOrWhiteSpace(hole.Notes) ? null : hole.Notes.Trim()
+			}).ToList() ?? []
 		};
 
 		var created = await tournamentService.CreateAsync(leagueId, User.GetRequiredUserId(), tournament, request.ParticipantMemberIds, cancellationToken);
@@ -60,6 +74,10 @@ public class TournamentsController(ITournamentService tournamentService) : Contr
 	[HttpPost("{tournamentId:guid}/rounds/score")]
 	public async Task<IActionResult> ScoreRound(Guid leagueId, Guid tournamentId, ScoreTournamentRoundRequest request, CancellationToken cancellationToken) =>
 		Ok(await tournamentService.ScoreRoundAsync(leagueId, User.GetRequiredUserId(), tournamentId, request.Scores, cancellationToken));
+
+	[HttpPost("{tournamentId:guid}/pub-golf/scores")]
+	public async Task<IActionResult> ScorePubGolfHole(Guid leagueId, Guid tournamentId, ScorePubGolfHoleRequest request, CancellationToken cancellationToken) =>
+		Ok(await tournamentService.ScorePubGolfHoleAsync(leagueId, User.GetRequiredUserId(), tournamentId, request.HoleId, request.Scores, cancellationToken));
 
 	[HttpDelete("{tournamentId:guid}")]
 	public async Task<IActionResult> Delete(Guid leagueId, Guid tournamentId, CancellationToken cancellationToken)
